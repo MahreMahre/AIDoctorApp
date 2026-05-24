@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 // import 'package:google_fonts/google_fonts.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:health_app1/screens/chat/chats.dart';
@@ -165,9 +166,9 @@ class _MainPagePatientState extends State<MainPagePatient>
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 duration: const Duration(milliseconds: 200),
                 tabBackgroundColor: Colors.blue.withOpacity(0.7),
-                // textStyle: GoogleFonts.lato(
-                //   color: Colors.white,
-                // ),
+                textStyle: GoogleFonts.lato(
+                  color: Colors.white,
+                ),
                 tabs: const [
                   GButton(iconSize: 28, icon: Icons.home),
                   GButton(icon: Icons.search),

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 //import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/screens/patient/doctor_profile.dart';
 
@@ -54,10 +55,10 @@ class _ExploreListState extends State<ExploreList> {
                     const SizedBox(height: 10),
                     Text(
                       "No doctors found for this specialization.",
-                      // style: GoogleFonts.lato(
-                      //   fontSize: 16,
-                      //   color: Colors.black54,
-                      // ),
+                      style: GoogleFonts.lato(
+                        fontSize: 16,
+                        color: Colors.black54,
+                      ),
                     ),
                   ],
                 ),
@@ -119,10 +120,10 @@ class _ExploreListState extends State<ExploreList> {
                               children: [
                                 Text(
                                   name,
-                                  // style: GoogleFonts.lato(
-                                  //   fontWeight: FontWeight.bold,
-                                  //   fontSize: 16,
-                                  // ),
+                                  style: GoogleFonts.lato(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(

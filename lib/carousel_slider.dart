@@ -3,6 +3,7 @@
 
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 // import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/model/banner_model.dart';
 import 'package:health_app1/screens/disease.dart';
@@ -60,15 +61,15 @@ class Carouselslider extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Text(
-                          bannerCards[index].text,
-                          //'Check Disease',
-                          // style: GoogleFonts.lato(
-                          //   color: Colors.lightBlue[900],
-                          //   fontWeight: FontWeight.bold,
-                          //   fontSize: 15,
-                          // ),
-                        ),
+                        // Text(
+                        //   bannerCards[index].text,
+                        //   'Check Disease',
+                        //   style: GoogleFonts.lato(
+                        //     color: Colors.lightBlue[900],
+                        //     fontWeight: FontWeight.bold,
+                        //     fontSize: 15,
+                        //   ),
+                        // ),
                         Icon(
                           Icons.chevron_right_rounded,
                           color: Colors.lightBlue[900],

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-//import 'package:google_fonts/google_fonts.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import 'package:health_app1/firestore_data/user_details.dart';
 
 class UserSettings extends StatefulWidget {
@@ -49,8 +50,8 @@ class _UserSettingsState extends State<UserSettings> {
         ),
         title: Text(
           'User Settings',
-          // style: GoogleFonts.lato(
-          //     color: Colors.indigo, fontSize: 20, fontWeight: FontWeight.bold),
+          style: GoogleFonts.lato(
+              color: Colors.indigo, fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -79,11 +80,11 @@ class _UserSettingsState extends State<UserSettings> {
                 style: TextButton.styleFrom(foregroundColor: Colors.grey),
                 child: Text(
                   'Sign out',
-                  // style: GoogleFonts.lato(
-                  //   color: Colors.black,
-                  //   fontSize: 16,
-                  //   fontWeight: FontWeight.bold,
-                  // ),
+                  style: GoogleFonts.lato(
+                    color: Colors.black,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),

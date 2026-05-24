@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-//import 'package:google_fonts/google_fonts.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import 'package:health_app1/globals.dart';
 import 'package:health_app1/helperFunction/sharedpref_helper.dart';
 import 'package:health_app1/screens/register.dart';
@@ -78,20 +79,20 @@ class _SignInState extends State<SignIn> {
               padding: const EdgeInsets.only(bottom: 25),
               child: Text(
                 'Login',
-                // style: GoogleFonts.lato(
-                //   fontSize: 30,
-                //   fontWeight: FontWeight.bold,
-                // ),
+                style: GoogleFonts.lato(
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             // email
             TextFormField(
               focusNode: f1,
-              // style: GoogleFonts.lato(
-              //   fontSize: 18,
-              //   fontWeight: FontWeight.w800,
-              // )
-              // ,
+              style: GoogleFonts.lato(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              )
+              ,
               keyboardType: TextInputType.emailAddress,
               controller: _emailController,
               decoration: InputDecoration(
@@ -104,11 +105,11 @@ class _SignInState extends State<SignIn> {
                 filled: true,
                 fillColor: Colors.grey[350],
                 hintText: 'Email',
-                // hintStyle: GoogleFonts.lato(
-                //   color: Colors.black26,
-                //   fontSize: 18,
-                //   fontWeight: FontWeight.w800,
-                // ),
+                hintStyle: GoogleFonts.lato(
+                  color: Colors.black26,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               onFieldSubmitted: (value) {
                 f1.unfocus();
@@ -134,10 +135,10 @@ class _SignInState extends State<SignIn> {
               focusNode: f2,
               controller: _passwordController,
               obscureText: _obscure,
-              // style: GoogleFonts.lato(
-              //   fontSize: 18,
-              //   fontWeight: FontWeight.w800,
-              // ),
+              style: GoogleFonts.lato(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.only(left: 20, top: 10, bottom: 10),
                 border: const OutlineInputBorder(
@@ -147,11 +148,11 @@ class _SignInState extends State<SignIn> {
                 filled: true,
                 fillColor: Colors.grey[350],
                 hintText: 'Password',
-                // hintStyle: GoogleFonts.lato(
-                //   color: Colors.black26,
-                //   fontSize: 18,
-                //   fontWeight: FontWeight.w800,
-                // ),
+                hintStyle: GoogleFonts.lato(
+                  color: Colors.black26,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscure ? Icons.visibility_off : Icons.visibility,
@@ -200,11 +201,11 @@ class _SignInState extends State<SignIn> {
                   ),
                   child: Text(
                     "Sign In",
-                    // style: GoogleFonts.lato(
-                    //   color: Colors.white,
-                    //   fontSize: 18.0,
-                    //   fontWeight: FontWeight.bold,
-                    // ),
+                style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18.0,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -219,11 +220,11 @@ class _SignInState extends State<SignIn> {
                 onPressed: () {},
                 child: Text(
                   'Forgot Password?',
-                  // style: GoogleFonts.lato(
-                  //   fontSize: 16,
-                  //   color: Colors.black54,
-                  //   fontWeight: FontWeight.w600,
-                  // ),
+                  style: GoogleFonts.lato(
+                    fontSize: 16,
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -237,10 +238,10 @@ class _SignInState extends State<SignIn> {
                 children: [
                   Text(
                     "Don't have an account?",
-                    // style: GoogleFonts.lato(
-                    //   fontSize: 15.0,
-                    //   fontWeight: FontWeight.w700,
-                    // ),
+                    style: GoogleFonts.lato(
+                      fontSize: 15.0,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   TextButton(
                     style: ButtonStyle(
@@ -249,11 +250,11 @@ class _SignInState extends State<SignIn> {
                     onPressed: () => _pushPage(context, const Register()),
                     child: Text(
                       'Signup here',
-                      // style: GoogleFonts.lato(
-                      //   fontSize: 15,
-                      //   color: Colors.indigo[700],
-                      //   fontWeight: FontWeight.w600,
-                      // ),
+                      style: GoogleFonts.lato(
+                        fontSize: 15,
+                        color: Colors.indigo[700],
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

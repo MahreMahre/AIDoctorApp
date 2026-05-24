@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/ui/firebase_animated_list.dart';
 import 'package:flutter/material.dart';
-// import 'package:google_fonts/google_fonts.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/screens/chat/chat_dao.dart';
 import 'package:health_app1/screens/chat/chat_room.dart';
 
@@ -43,37 +43,61 @@ class _ChatsState extends State<Chats> {
       );
     }
 
-    return SafeArea(
-      child: Scaffold(
-        body: Column(
-          children: [_getChatList()],
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(child: _getChatList()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
+      child: Text(
+        "",
+        style: GoogleFonts.poppins(
+          fontSize: 28,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF1E40AF),
         ),
       ),
     );
   }
 
   Widget _getChatList() {
-    return Expanded(
-      child: FirebaseAnimatedList(
-        controller: _scrollController,
-        query: chatDao!.getChatQuery(),
-        itemBuilder: (context, snapshot, animation, index) {
-          if (snapshot.value == null || snapshot.value is! Map) {
-            return const SizedBox.shrink();
-          }
+    return FirebaseAnimatedList(
+      controller: _scrollController,
+      query: chatDao!.getChatQuery(),
+      defaultChild: const Center(child: CircularProgressIndicator()),
+      itemBuilder: (context, snapshot, animation, index) {
+        if (snapshot.value == null || snapshot.value is! Map) {
+          return const SizedBox.shrink();
+        }
 
-          final json = Map<String, dynamic>.from(snapshot.value as Map);
+        final json = Map<String, dynamic>.from(snapshot.value as Map);
 
-          return ChatCard(
-            userId: json['uid'] ?? 'No id',
-            profileUrl: json['photo'] ?? '',
-            userName: json['name'] ?? 'Not Set',
-          );
-        },
-      ),
+        return ChatCard(
+          userId: json['uid'] ?? 'No id',
+          profileUrl: json['photo'] ?? '',
+          userName: json['name'] ?? 'Unknown',
+        );
+      },
     );
   }
 }
+
+// ==================== PREMIUM CHAT CARD ====================
 
 class ChatCard extends StatelessWidget {
   final String userId;
@@ -89,56 +113,115 @@ class ChatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 14),
-      child: Card(
-        color: Colors.blue[50],
-        elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatRoom(
+              user2Id: userId,
+              user2Name: userName,
+              profileUrl: profileUrl,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 15,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: Container(
-          padding: const EdgeInsets.only(left: 10, right: 10),
-          width: MediaQuery.of(context).size.width,
-          height: MediaQuery.of(context).size.height / 9,
-          child: TextButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChatRoom(
-                    user2Id: userId,
-                    user2Name: userName,
-                    profileUrl: profileUrl,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              // Profile Picture with Online Indicator
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.grey[200],
+                    backgroundImage: profileUrl.isNotEmpty
+                        ? NetworkImage(profileUrl)
+                        : null,
+                    child: profileUrl.isEmpty
+                        ? const Icon(Icons.person, size: 32, color: Colors.grey)
+                        : null,
                   ),
-                ),
-              );
-            },
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircleAvatar(
-                  backgroundImage: NetworkImage(profileUrl),
-                  backgroundColor: Colors.grey[300],
-                  radius: 30,
-                ),
-                const SizedBox(width: 20),
-                Column(
+                  // Online Status
+                  Positioned(
+                    bottom: 2,
+                    right: 2,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 16),
+
+              // Chat Info
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       userName,
-                      // style: GoogleFonts.lato(
-                      //   fontWeight: FontWeight.bold,
-                      //   fontSize: 19,
-                      //   color: Colors.black87,
-                      // ),
+                      style: GoogleFonts.poppins(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Tap to start chatting", // You can replace this with last message later
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+
+              // Time / Arrow
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Now",
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: const Color(0xFF1E40AF),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.grey,
+                    size: 26,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

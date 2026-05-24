@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 //import 'package:google_fonts/google_fonts.dart';
 import 'package:introduction_screen/introduction_screen.dart';
 
@@ -26,16 +27,16 @@ class _SkipState extends State<Skip> {
           children: [
             Text(
               'Search Doctors',
-              // style:
-              //     GoogleFonts.lato(fontSize: MediaQuery.of(context).size.width * 0.06,
-              //         fontWeight: FontWeight.w900),
+              style:
+                  GoogleFonts.lato(fontSize: MediaQuery.of(context).size.width * 0.06,
+                      fontWeight: FontWeight.w900),
             ),
             Text(
               'Find popular doctors nearby you',
-              // style: GoogleFonts.lato(
-              //     fontSize: 15,
-              //     color: Colors.grey[500],
-              //     fontWeight: FontWeight.w800),
+              style: GoogleFonts.lato(
+                  fontSize: 15,
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w800),
             ),
           ],
         ),
@@ -52,16 +53,16 @@ class _SkipState extends State<Skip> {
           children: [
             Text(
               'Search Disease',
-              // style:
-              //     GoogleFonts.lato(fontSize: MediaQuery.of(context).size.width * 0.06,
-              //          fontWeight: FontWeight.w900),
+              style:
+                  GoogleFonts.lato(fontSize: MediaQuery.of(context).size.width * 0.06,
+                       fontWeight: FontWeight.w900),
             ),
             Text(
               'Find information about disease',
-              // style: GoogleFonts.lato(
-              //     fontSize: 15,
-              //     color: Colors.grey[500],
-              //     fontWeight: FontWeight.w800),
+              style: GoogleFonts.lato(
+                  fontSize: 15,
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w800),
             ),
           ],
         ),
@@ -90,8 +91,8 @@ class _SkipState extends State<Skip> {
               child: Text(
                 'Skip',
                 textAlign: TextAlign.center,
-                // style:
-                //     GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.w900),
+                style:
+                    GoogleFonts.lato(fontSize: 15, fontWeight: FontWeight.w900),
               ),
             ),
           ),
@@ -108,8 +109,8 @@ class _SkipState extends State<Skip> {
               child: Text(
                 'Continue',
                 textAlign: TextAlign.center,
-                // style:
-                //     GoogleFonts.lato(fontSize: 15, fontWeight: FontWeight.w900),
+                style:
+                    GoogleFonts.lato(fontSize: 15, fontWeight: FontWeight.w900),
               ),
             ),
           ),

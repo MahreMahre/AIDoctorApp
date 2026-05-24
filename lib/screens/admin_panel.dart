@@ -80,7 +80,7 @@ class _AdminPanelState extends State<AdminPanel> {
     fetchStats();
   }
 
-/*
+
   Future<void> generatePdfReport() async {
     final pdf = pw.Document();
 
@@ -112,19 +112,19 @@ class _AdminPanelState extends State<AdminPanel> {
     final Uint8List bytes = await pdf.save();
 
     // Web download
-    if (identical(0, 0.0)) {
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute("download", "admin_report.pdf")
-        ..click();
-      html.Url.revokeObjectUrl(url);
-    } else {
-      // Desktop/mobile preview
-      await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => bytes);
-    }
+    // if (identical(0, 0.0)) {
+    //   final blob = html.Blob([bytes]);
+    //   final url = html.Url.createObjectUrlFromBlob(blob);
+    //   final anchor = html.AnchorElement(href: url)
+    //     ..setAttribute("download", "admin_report.pdf")
+    //     ..click();
+    //   html.Url.revokeObjectUrl(url);
+    // } else {
+    //   // Desktop/mobile preview
+    //   await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => bytes);
+    // }
   }
-*/
+
 
   @override
   Widget build(BuildContext context) {

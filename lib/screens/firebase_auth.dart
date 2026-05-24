@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 //import 'package:google_fonts/google_fonts.dart';
 
 import 'register.dart';
@@ -40,16 +41,19 @@ class _FireBaseAuthState extends State<FireBaseAuth> {
                         children: [
                           Text(
                             'HELLO',
-                            // style: GoogleFonts.b612(
-                            //   color: Colors.black,
-                            //   fontSize: 50,
-                            //   fontWeight: FontWeight.w700,
-                            // ),
+                            style: GoogleFonts.b612(
+                              color: Colors.black,
+                              fontSize: 50,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           Text(
                             'Welcome to SmartCare!',
-                            // style: GoogleFonts.b612(
-                            //   color: Colors.indigo[800],
+                            style: GoogleFonts.b612(
+                              color: Colors.indigo[800],
+                              fontSize: 17,
+                              fontWeight: FontWeight.w400,
+                            ),
                             //   fontSize: 17,
                             //   fontWeight: FontWeight.w400,
                             // ),
@@ -84,11 +88,11 @@ class _FireBaseAuthState extends State<FireBaseAuth> {
                               ),
                               child: Text(
                                 "Sign in",
-                                // style: GoogleFonts.lato(
-                                //   color: Colors.white,
-                                //   fontSize: 18.0,
-                                //   fontWeight: FontWeight.bold,
-                                // ),
+                                style: GoogleFonts.lato(
+                                  color: Colors.white,
+                                  fontSize: 18.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
@@ -108,11 +112,11 @@ class _FireBaseAuthState extends State<FireBaseAuth> {
                               ),
                               child: Text(
                                 "Create an Account",
-                                // style: GoogleFonts.lato(
-                                //   color: Colors.black,
-                                //   fontSize: 18.0,
-                                //   fontWeight: FontWeight.bold,
-                                // ),
+                                style: GoogleFonts.lato(
+                                  color: Colors.black,
+                                  fontSize: 18.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),

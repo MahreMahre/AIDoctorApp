@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 //import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/firestore_data/appointment_history_list.dart';
 import 'package:health_app1/globals.dart';
@@ -217,7 +218,7 @@ class _MyProfileState extends State<MyProfile> {
               padding: const EdgeInsets.only(top: 75),
               child: Text(
                 name ?? 'Name Not Added',
-                // style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.bold),
+                style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.bold),
               ),
             ),
             Text(specialization?.isNotEmpty == true ? '($specialization)' : ''),
@@ -259,7 +260,7 @@ class _MyProfileState extends State<MyProfile> {
           alignment: Alignment.centerLeft,
           child: Text(
             bio ?? 'Not Added',
-            // style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black38),
+            style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black38),
           ),
         ),
       ),
@@ -336,11 +337,11 @@ class _MyProfileState extends State<MyProfile> {
         const SizedBox(width: 10),
         Text(
           text,
-          // style: GoogleFonts.lato(
-          //   fontSize: 16,
-          //   fontWeight: isTitle ? FontWeight.bold : FontWeight.w600,
-          //   color: isTitle ? Colors.black : Colors.black54,
-          // ),
+          style: GoogleFonts.lato(
+            fontSize: 16,
+            fontWeight: isTitle ? FontWeight.bold : FontWeight.w600,
+            color: isTitle ? Colors.black : Colors.black54,
+          ),
         ),
       ],
     );

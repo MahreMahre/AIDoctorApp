@@ -1,6 +1,7 @@
 // chatbot_screen.dart (Updated: Removed image, added TTS, saved history to SharedPrefs)
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 // import 'package:google_fonts/google_fonts.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -143,11 +144,11 @@ class _ChatScreenState extends State<ChatScreen> {
         elevation: 0,
         title: Text(
           "AI Symptoms Checker",
-          // style: GoogleFonts.lato(
-          //   color: Colors.black,
-          //   fontWeight: FontWeight.bold,
-          //   fontSize: 20,
-          // ),
+          style: GoogleFonts.lato(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
         ),
         actions: [
           IconButton(icon: const Icon(Icons.mic), onPressed: _startListening),
@@ -188,9 +189,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: MarkdownBody(
                       data: msg['text'] ?? '',
                       styleSheet: MarkdownStyleSheet(
-                        // p: GoogleFonts.lato(fontSize: 16),
+                        p: GoogleFonts.lato(fontSize: 16),
                         strong: const TextStyle(fontWeight: FontWeight.bold),
-                     // listBullet: GoogleFonts.lato(fontSize: 16),
+                     listBullet: GoogleFonts.lato(fontSize: 16),
                       ), 
                     ),
                   ),

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 // import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/carousel_slider.dart';
@@ -74,11 +75,11 @@ class _HomePageState extends State<HomePage> {
                 alignment: Alignment.center,
                 child: Text(
                   message,
-                  // style: GoogleFonts.lato(
-                  //   color: Colors.black54,
-                  //   fontSize: 20,
-                  //   fontWeight: FontWeight.w400,
-                  // ),
+                  style: GoogleFonts.lato(
+                    color: Colors.black54,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
               const SizedBox(width: 55),
@@ -117,10 +118,10 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.only(left: 20, bottom: 10),
                     child: Text(
                       "Hello ${user?.displayName ?? 'User'}",
-                      // style: GoogleFonts.lato(
-                      //   fontSize: 18,
-                      //   fontWeight: FontWeight.w500,
-                      // ),
+                      style: GoogleFonts.lato(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                   Container(
@@ -128,10 +129,10 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.only(left: 20, bottom: 25),
                     child: Text(
                       "Let's Find Your\nDoctor",
-                      // style: GoogleFonts.lato(
-                      //   fontSize: 35,
-                      //   fontWeight: FontWeight.bold,
-                      // ),
+                      style: GoogleFonts.lato(
+                        fontSize: 35,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   Container(
@@ -150,11 +151,11 @@ class _HomePageState extends State<HomePage> {
                         filled: true,
                         fillColor: Colors.grey[200],
                         hintText: 'Search doctor',
-                        // hintStyle: GoogleFonts.lato(
-                        //   color: Colors.black26,
-                        //   fontSize: 18,
-                        //   fontWeight: FontWeight.w800,
-                        // ),
+                        hintStyle: GoogleFonts.lato(
+                          color: Colors.black26,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
                         suffixIcon: Container(
                           decoration: BoxDecoration(
                             color: Colors.blue.shade900.withOpacity(0.9),
@@ -169,10 +170,10 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                       ),
-                      // style: GoogleFonts.lato(
-                      //   fontSize: 18,
-                      //   fontWeight: FontWeight.w800,
-                      // ),
+                      style: GoogleFonts.lato(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
                       onFieldSubmitted: (String value) {
                         if (value.isNotEmpty) {
                           Navigator.push(
@@ -215,11 +216,11 @@ class _HomePageState extends State<HomePage> {
       child: Text(
         title,
         textAlign: TextAlign.center,
-        // style: GoogleFonts.lato(
-        //   color: Colors.blue[800],
-        //   fontWeight: FontWeight.bold,
-        //   fontSize: 18,
-        // ),
+        style: GoogleFonts.lato(
+          color: Colors.blue[800],
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
       ),
     );
   }
@@ -284,11 +285,11 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 10),
                   Text(
                     card.title,
-                    // style: GoogleFonts.lato(
-                    //   color: Colors.white,
-                    //   fontSize: 16,
-                    //   fontWeight: FontWeight.w600,
-                    // ),
+                    style: GoogleFonts.lato(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),

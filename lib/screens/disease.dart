@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 // import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/screens/diseasedetail.dart';
 
@@ -40,11 +41,11 @@ class _DiseaseState extends State<Disease> {
         backgroundColor: Colors.white,
         title: Text(
           'Diseases',
-          // style: GoogleFonts.lato(
-          //   color: Colors.black,
-          //   fontSize: 20,
-          //   fontWeight: FontWeight.bold,
-          // ),
+          style: GoogleFonts.lato(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         iconTheme: const IconThemeData(
           color: Colors.black,
@@ -86,16 +87,18 @@ class _DiseaseState extends State<Disease> {
                     children: [
                       Text(
                         disease['Name'] ?? 'Unknown',
-                        // style: GoogleFonts.lato(
-                        //   fontWeight: FontWeight.bold,
-                        //   fontSize: 16,
-                        //   color: Colors.black87,
-                        // ),
+                        style: GoogleFonts.lato(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.black87,
+                        ),
                       ),
                       Text(
                         disease['Symptoms'] ?? '',
-                        // style: GoogleFonts.lato(
-                        //     fontSize: 14, color: Colors.black54),
+                        style: GoogleFonts.lato(
+                          fontSize: 14,
+                          color: Colors.black54,
+                        ),
                       ),
                     ],
                   ),

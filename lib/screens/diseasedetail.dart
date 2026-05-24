@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 // import 'package:google_fonts/google_fonts.dart';
 
 class DiseaseDetail extends StatefulWidget {
@@ -21,7 +22,7 @@ class _DiseaseDetailState extends State<DiseaseDetail> {
         elevation: 0,
         title: Text(
           widget.disease,
-          // style: GoogleFonts.lato(color: Colors.black),
+          style: GoogleFonts.lato(color: Colors.black),
         ),
       ),
       body: StreamBuilder(
@@ -57,8 +58,8 @@ class _DiseaseDetailState extends State<DiseaseDetail> {
                             ),
                             child: Text(
                               document['Description'],
-                              // style: GoogleFonts.lato(
-                              //     color: Colors.black54, fontSize: 18),
+                              style: GoogleFonts.lato(
+                                  color: Colors.black54, fontSize: 18),
                             )
                             ),
                         const SizedBox(
@@ -77,10 +78,10 @@ class _DiseaseDetailState extends State<DiseaseDetail> {
                               children: [
                                 Text(
                                   'How does it spread?',
-                                  // style: GoogleFonts.lato(
-                                  //     color: Colors.black87,
-                                  //     fontSize: 20,
-                                  //     fontWeight: FontWeight.bold),
+                                  style: GoogleFonts.lato(
+                                    color: Colors.black87,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold),
                                   textAlign: TextAlign.left,
                                 ),
                                 const SizedBox(
@@ -92,6 +93,10 @@ class _DiseaseDetailState extends State<DiseaseDetail> {
                                   //   color: Colors.black54,
                                   //   fontSize: 18,
                                   // ),
+                                  style: GoogleFonts.lato(
+                                    color: Colors.black54,
+                                    fontSize: 18,
+                                  ),
                                 )
                               ],
                             )),
@@ -122,10 +127,10 @@ class _DiseaseDetailState extends State<DiseaseDetail> {
                                 ),
                                 Text(
                                   document['Symptoms'],
-                                  // style: GoogleFonts.lato(
-                                  //   color: Colors.black54,
-                                  //   fontSize: 18,
-                                  // ),
+                                  style: GoogleFonts.lato(
+                                    color: Colors.black54,
+                                    fontSize: 18,
+                                  ),
                                 )
                               ],
                             )),
@@ -156,10 +161,10 @@ class _DiseaseDetailState extends State<DiseaseDetail> {
                                 ),
                                 Text(
                                   document['Warning'],
-                                  // style: GoogleFonts.lato(
-                                  //   color: Colors.black54,
-                                  //   fontSize: 18,
-                                  // ),
+                                  style: GoogleFonts.lato(
+                                    color: Colors.black54,
+                                    fontSize: 18,
+                                  ),
                                 )
                               ],
                             )),

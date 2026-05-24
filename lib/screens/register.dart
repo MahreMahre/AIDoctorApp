@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/globals.dart' as globals;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -75,10 +76,10 @@ class _RegisterState extends State<Register> {
           children: [
             Text(
               'Sign up',
-              // style: GoogleFonts.lato(
-              //   fontSize: 30,
-              //   fontWeight: FontWeight.bold,
-              // ),
+              style: GoogleFonts.lato(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 50),
 
@@ -87,10 +88,10 @@ class _RegisterState extends State<Register> {
               focusNode: f1,
               controller: _displayName,
               textInputAction: TextInputAction.next,
-              // style: GoogleFonts.lato(
-              //   fontSize: 18,
-              //   fontWeight: FontWeight.w800,
-              // ),
+              style: GoogleFonts.lato(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
               decoration: _inputDecoration('Name'),
               onFieldSubmitted: (_) {
                 f1.unfocus();
@@ -115,10 +116,10 @@ class _RegisterState extends State<Register> {
               controller: _emailController,
               textInputAction: TextInputAction.next,
               keyboardType: TextInputType.emailAddress,
-              // style: GoogleFonts.lato(
-              //   fontSize: 18,
-              //   fontWeight: FontWeight.w800,
-              // ),
+              style: GoogleFonts.lato(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
               decoration: _inputDecoration('Email'),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -141,10 +142,10 @@ class _RegisterState extends State<Register> {
               controller: _passwordController,
               obscureText: !_passwordVisible,
               textInputAction: TextInputAction.next,
-              // style: GoogleFonts.lato(
-              //   fontSize: 18,
-              //   fontWeight: FontWeight.w800,
-              // ),
+              style: GoogleFonts.lato(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
               decoration: _inputDecoration('Password').copyWith(
                 suffixIcon: IconButton(
                   icon: Icon(
@@ -178,10 +179,10 @@ class _RegisterState extends State<Register> {
               controller: _passwordConfirmController,
               obscureText: !_confirmPasswordVisible,
               textInputAction: TextInputAction.done,
-              // style: GoogleFonts.lato(
-              //   fontSize: 18,
-              //   fontWeight: FontWeight.w800,
-              // ),
+              style: GoogleFonts.lato(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
               decoration: _inputDecoration('Confirm Password').copyWith(
                 suffixIcon: IconButton(
                   icon: Icon(
@@ -238,11 +239,11 @@ class _RegisterState extends State<Register> {
                 ),
                 child: Text(
                   "Sign Up", // ✅ changed here
-                  // style: GoogleFonts.lato(
-                  //   color: Colors.white,
-                  //   fontSize: 18.0,
-                  //   fontWeight: FontWeight.bold,
-                  // ),
+                  style: GoogleFonts.lato(
+                    color: Colors.white,
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -256,20 +257,20 @@ class _RegisterState extends State<Register> {
               children: [
                 Text(
                   "Already have an account?",
-                  // style: GoogleFonts.lato(
-                  //   fontSize: 15.0,
-                  //   fontWeight: FontWeight.w700,
-                  // ),
+                  style: GoogleFonts.lato(
+                    fontSize: 15.0,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 TextButton(
                   onPressed: () => _pushPage(context, const SignIn()),
                   child: Text(
                     'Sign in',
-                    // style: GoogleFonts.lato(
-                    //   fontSize: 15,
-                    //   color: Colors.indigo[700],
-                    //   fontWeight: FontWeight.w600,
-                    // ),
+                    style: GoogleFonts.lato(
+                      fontSize: 15,
+                      color: Colors.indigo[700],
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -290,11 +291,11 @@ class _RegisterState extends State<Register> {
       filled: true,
       fillColor: Colors.grey[350],
       hintText: hintText,
-      // hintStyle: GoogleFonts.lato(
-      //   color: Colors.black26,
-      //   fontSize: 18,
-      //   fontWeight: FontWeight.w800,
-      // ),
+      hintStyle: GoogleFonts.lato(
+        color: Colors.black26,
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+      ),
     );
   }
 
@@ -322,11 +323,11 @@ class _RegisterState extends State<Register> {
         ),
         child: Text(
           label,
-          // style: GoogleFonts.lato(
-          //   color: type == selectedType ? Colors.black38 : Colors.white,
-          //   fontSize: 18.0,
-          //   fontWeight: FontWeight.bold,
-          // ),
+          style: GoogleFonts.lato(
+            color: type == selectedType ? Colors.black38 : Colors.white,
+            fontSize: 18.0,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -340,14 +341,14 @@ class _RegisterState extends State<Register> {
         return AlertDialog(
           title: Text(
             "Error!",
-            // style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+            style: GoogleFonts.lato(fontWeight: FontWeight.bold),
           ),
           content: Text("Email already Exists",),
           actions: [
             TextButton(
               child: Text(
                 "OK",
-                // style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+                 style: GoogleFonts.lato(fontWeight: FontWeight.bold),
               ),
               onPressed: () {
                 Navigator.pop(context);
