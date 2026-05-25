@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class NurseChatScreen extends StatefulWidget {
-  const NurseChatScreen({Key? key}) : super(key: key);
+  const NurseChatScreen({Key? key, required String nurseId, required String nurseName}) : super(key: key);
 
   @override
   State<NurseChatScreen> createState() => _NurseChatScreenState();

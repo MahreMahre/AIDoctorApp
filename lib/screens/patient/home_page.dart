@@ -2,13 +2,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/carousel_slider.dart';
 import 'package:health_app1/firestore_data/notification_list.dart';
 import 'package:health_app1/firestore_data/search_list.dart';
 import 'package:health_app1/firestore_data/top_rated_list.dart';
 import 'package:health_app1/model/card_model.dart';
 import 'package:health_app1/screens/explore_list.dart';
+import 'package:health_app1/screens/nursing/nurse_list_screen.dart';
 import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
@@ -21,8 +21,10 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   TextEditingController _doctorName = TextEditingController();
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   User? user;
+
   String message = "Good";
 
   @override
@@ -36,9 +38,10 @@ class _HomePageState extends State<HomePage> {
   void _setGreeting() {
     DateTime now = DateTime.now();
     int hour = int.parse(DateFormat('kk').format(now));
+
     if (hour >= 5 && hour < 12) {
       message = 'Good Morning';
-    } else if (hour >= 12 && hour <= 17) {
+    } else if (hour <= 17) {
       message = 'Good Afternoon';
     } else {
       message = 'Good Evening';
@@ -61,235 +64,276 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       key: _scaffoldKey,
+
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        actions: <Widget>[Container()],
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Container(
-          padding: const EdgeInsets.only(top: 5),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Container(
-                alignment: Alignment.center,
-                child: Text(
-                  message,
-                  style: GoogleFonts.lato(
-                    color: Colors.black54,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w400,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              message,
+              style: GoogleFonts.lato(
+                color: Colors.black54,
+                fontSize: 20,
+              ),
+            ),
+            const SizedBox(width: 40),
+            IconButton(
+              icon: const Icon(Icons.notifications_active),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationList(),
                   ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+
+      body: SafeArea(
+        child: ListView(
+          children: [
+            const SizedBox(height: 30),
+
+            Padding(
+              padding: const EdgeInsets.only(left: 20),
+              child: Text(
+                "Hello ${user?.displayName ?? 'User'}",
+                style: GoogleFonts.lato(fontSize: 18),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Padding(
+              padding: const EdgeInsets.only(left: 20),
+              child: Text(
+                "Find Doctors & Nurses\nNear You",
+                style: GoogleFonts.lato(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(width: 55),
-              IconButton(
-                splashRadius: 20,
-                icon: const Icon(Icons.notifications_active),
-                onPressed: () {
+            ),
+
+            const SizedBox(height: 20),
+
+            // SEARCH
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TextFormField(
+                controller: _doctorName,
+                decoration: InputDecoration(
+                  hintText: "Search doctor or nurse",
+                  filled: true,
+                  fillColor: Colors.grey[200],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: () {},
+                  ),
+                ),
+                onFieldSubmitted: (value) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const NotificationList(),
+                      builder: (context) =>
+                          SearchList(searchKey: value),
                     ),
                   );
                 },
               ),
-            ],
-          ),
-        ),
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
-      body: SafeArea(
-        child: NotificationListener<OverscrollIndicatorNotification>(
-          onNotification: (overscroll) {
-            overscroll.disallowIndicator();
-            return true;
-          },
-          child: ListView(
-            physics: const ClampingScrollPhysics(),
-            shrinkWrap: true,
-            children: [
-              Column(
+            ),
+
+            const SizedBox(height: 20),
+
+            sectionTitle("We care for you"),
+            const Carouselslider(),
+
+            const SizedBox(height: 20),
+
+            // ================= NURSING SECTION =================
+            sectionTitle("Nursing Services"),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
                 children: [
-                  const SizedBox(height: 30),
-                  Container(
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 20, bottom: 10),
-                    child: Text(
-                      "Hello ${user?.displayName ?? 'User'}",
-                      style: GoogleFonts.lato(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 20, bottom: 25),
-                    child: Text(
-                      "Let's Find Your\nDoctor",
-                      style: GoogleFonts.lato(
-                        fontSize: 35,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 25),
-                    child: TextFormField(
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.search,
-                      controller: _doctorName,
-                      decoration: InputDecoration(
-                        contentPadding:
-                        const EdgeInsets.only(left: 20, top: 10, bottom: 10),
-                        border: const OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(15.0)),
-                          borderSide: BorderSide.none,
+
+                  _nurseCard(
+                    "Find Nurses",
+                    "Professional nurses available near you",
+                    Icons.health_and_safety,
+                    Colors.green,
+                    () {
+                      // 🔥 REAL NURSE LIST SCREEN
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const NurseListScreen(),
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[200],
-                        hintText: 'Search doctor',
-                        hintStyle: GoogleFonts.lato(
-                          color: Colors.black26,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        suffixIcon: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade900.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: IconButton(
-                            iconSize: 20,
-                            splashRadius: 20,
-                            color: Colors.white,
-                            icon: const Icon(Icons.search),
-                            onPressed: () {},
-                          ),
-                        ),
-                      ),
-                      style: GoogleFonts.lato(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      onFieldSubmitted: (String value) {
-                        if (value.isNotEmpty) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SearchList(searchKey: value),
-                            ),
-                          );
-                        }
-                      },
-                    ),
+                      );
+                    },
                   ),
-                  sectionTitle("We care for you"),
-                  const Carouselslider(),
-                  sectionTitle("Specialists"),
-                  buildSpecialistList(),
-                  const SizedBox(height: 30),
-                  sectionTitle("Top Rated"),
+
                   const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    child: const TopRatedList(),
+
+                  _nurseCard(
+                    "Home Care Service",
+                    "24/7 nursing assistance at home",
+                    Icons.health_and_safety,
+                    Colors.blue,
+                    () {},
                   ),
-                  const SizedBox(height: 20),
+
+                  const SizedBox(height: 10),
+
+                  _nurseCard(
+                    "Emergency Nurse",
+                    "Instant nurse support in emergency",
+                    Icons.emergency,
+                    Colors.red,
+                    () {},
+                  ),
                 ],
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 20),
+
+            sectionTitle("Specialists"),
+            buildSpecialistList(),
+
+            const SizedBox(height: 20),
+
+            sectionTitle("Top Rated"),
+            const SizedBox(height: 10),
+
+            const TopRatedList(),
+
+            const SizedBox(height: 20),
+          ],
         ),
       ),
-
-
     );
   }
 
   Widget sectionTitle(String title) {
-    return Container(
+    return Padding(
       padding: const EdgeInsets.only(left: 20, bottom: 10),
-      alignment: Alignment.centerLeft,
       child: Text(
         title,
-        textAlign: TextAlign.center,
         style: GoogleFonts.lato(
-          color: Colors.blue[800],
-          fontWeight: FontWeight.bold,
           fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.blue[800],
         ),
       ),
     );
   }
 
-// Updated buildSpecialistList() to work with the new CardModel
+  Widget _nurseCard(
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(color: Colors.grey.shade300, blurRadius: 8),
+          ],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: color.withOpacity(0.2),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.lato(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.lato(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget buildSpecialistList() {
-    return Container(
+    return SizedBox(
       height: 150,
-      padding: const EdgeInsets.only(top: 14),
       child: ListView.builder(
-        physics: const ClampingScrollPhysics(),
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
         itemCount: cards.length,
         itemBuilder: (context, index) {
           final card = cards[index];
+
           return Container(
-            margin: const EdgeInsets.only(right: 14),
-            height: 150,
             width: 140,
+            margin: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
               color: card.backgroundColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.shade400,
-                  blurRadius: 4.0,
-                  spreadRadius: 0.0,
-                  offset: const Offset(3, 3),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(20),
             ),
             child: TextButton(
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ExploreList(type: card.title),
+                    builder: (context) =>
+                        ExploreList(type: card.title),
                   ),
                 );
               },
-              style: ButtonStyle(
-                shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 16),
                   CircleAvatar(
                     backgroundColor: Colors.white,
-                    radius: 29,
                     child: Icon(
                       card.icon,
-                      size: 26,
                       color: card.backgroundColor,
                     ),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     card.title,
-                    style: GoogleFonts.lato(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ],
               ),

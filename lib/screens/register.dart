@@ -1,13 +1,11 @@
 import 'dart:math';
+
 import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/globals.dart' as globals;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-//import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/screens/sign_in.dart';
-
-// ... [imports same as before] ...
 
 class Register extends StatefulWidget {
   const Register({Key? key}) : super(key: key);
@@ -18,14 +16,17 @@ class Register extends StatefulWidget {
 
 class _RegisterState extends State<Register> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
   final TextEditingController _displayName = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _passwordConfirmController =
-  TextEditingController();
+      TextEditingController();
 
   int type = -1;
+
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
 
@@ -40,6 +41,7 @@ class _RegisterState extends State<Register> {
     _emailController.dispose();
     _passwordController.dispose();
     _passwordConfirmController.dispose();
+
     super.dispose();
   }
 
@@ -81,9 +83,10 @@ class _RegisterState extends State<Register> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 50),
 
-            // Name field
+            // NAME FIELD
             TextFormField(
               focusNode: f1,
               controller: _displayName,
@@ -103,14 +106,15 @@ class _RegisterState extends State<Register> {
                 } else if (!RegExp(
                   r'^[A-Z][a-z]*(\s[A-Z][a-z]*)*$',
                 ).hasMatch(value.trim())) {
-                  return 'Name must start with capital letter (e.g., John Doe)';
+                  return 'Name must start with capital letter';
                 }
                 return null;
               },
             ),
+
             const SizedBox(height: 25),
 
-            // Email
+            // EMAIL FIELD
             TextFormField(
               focusNode: f2,
               controller: _emailController,
@@ -134,9 +138,10 @@ class _RegisterState extends State<Register> {
                 FocusScope.of(context).requestFocus(f3);
               },
             ),
+
             const SizedBox(height: 25),
 
-            // Password
+            // PASSWORD FIELD
             TextFormField(
               focusNode: f3,
               controller: _passwordController,
@@ -149,7 +154,9 @@ class _RegisterState extends State<Register> {
               decoration: _inputDecoration('Password').copyWith(
                 suffixIcon: IconButton(
                   icon: Icon(
-                    _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                    _passwordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
                   ),
                   onPressed: () {
                     setState(() {
@@ -162,7 +169,7 @@ class _RegisterState extends State<Register> {
                 if (value == null || value.isEmpty) {
                   return 'Please enter the Password';
                 } else if (value.length < 8) {
-                  return 'Password must be at least 8 characters long';
+                  return 'Password must be at least 8 characters';
                 }
                 return null;
               },
@@ -171,9 +178,10 @@ class _RegisterState extends State<Register> {
                 FocusScope.of(context).requestFocus(f4);
               },
             ),
+
             const SizedBox(height: 25),
 
-            // Confirm Password
+            // CONFIRM PASSWORD
             TextFormField(
               focusNode: f4,
               controller: _passwordConfirmController,
@@ -183,7 +191,9 @@ class _RegisterState extends State<Register> {
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
               ),
-              decoration: _inputDecoration('Confirm Password').copyWith(
+              decoration: _inputDecoration(
+                'Confirm Password',
+              ).copyWith(
                 suffixIcon: IconButton(
                   icon: Icon(
                     _confirmPasswordVisible
@@ -192,14 +202,15 @@ class _RegisterState extends State<Register> {
                   ),
                   onPressed: () {
                     setState(() {
-                      _confirmPasswordVisible = !_confirmPasswordVisible;
+                      _confirmPasswordVisible =
+                      !_confirmPasswordVisible;
                     });
                   },
                 ),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please confirm your password';
+                  return 'Please confirm password';
                 } else if (value != _passwordController.text) {
                   return 'Passwords do not match';
                 }
@@ -207,26 +218,44 @@ class _RegisterState extends State<Register> {
               },
               onFieldSubmitted: (_) => f4.unfocus(),
             ),
+
             const SizedBox(height: 25),
 
-            // Account type buttons
+            // ACCOUNT TYPE
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _accountTypeButton('Doctor', 0),
-                const Text('or'),
-                _accountTypeButton('Patient', 1),
+
+                // DOCTOR
+                Expanded(
+                  child: _accountTypeButton('Doctor', 0),
+                ),
+
+                const SizedBox(width: 8),
+
+                // PATIENT
+                Expanded(
+                  child: _accountTypeButton('Patient', 1),
+                ),
+
+                const SizedBox(width: 8),
+
+                // NURSE
+                Expanded(
+                  child: _accountTypeButton('Nurse', 2),
+                ),
               ],
             ),
+
             const SizedBox(height: 25),
 
-            // Sign Up Button
+            // SIGN UP BUTTON
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
                 onPressed: () async {
-                  if (_formKey.currentState!.validate() && type != -1) {
+                  if (_formKey.currentState!.validate() &&
+                      type != -1) {
                     showLoaderDialog(context);
                     _registerAccount();
                   }
@@ -238,7 +267,7 @@ class _RegisterState extends State<Register> {
                   ),
                 ),
                 child: Text(
-                  "Sign Up", // ✅ changed here
+                  "Sign Up",
                   style: GoogleFonts.lato(
                     color: Colors.white,
                     fontSize: 18.0,
@@ -249,7 +278,9 @@ class _RegisterState extends State<Register> {
             ),
 
             const SizedBox(height: 25),
+
             const Divider(thickness: 1.5),
+
             const SizedBox(height: 5),
 
             Row(
@@ -262,8 +293,10 @@ class _RegisterState extends State<Register> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+
                 TextButton(
-                  onPressed: () => _pushPage(context, const SignIn()),
+                  onPressed: () =>
+                      _pushPage(context, const SignIn()),
                   child: Text(
                     'Sign in',
                     style: GoogleFonts.lato(
@@ -283,9 +316,14 @@ class _RegisterState extends State<Register> {
 
   InputDecoration _inputDecoration(String hintText) {
     return InputDecoration(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 10,
+      ),
       border: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(90.0)),
+        borderRadius: BorderRadius.all(
+          Radius.circular(90.0),
+        ),
         borderSide: BorderSide.none,
       ),
       filled: true,
@@ -299,9 +337,11 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  Widget _accountTypeButton(String label, int selectedType) {
+  Widget _accountTypeButton(
+      String label,
+      int selectedType,
+      ) {
     return SizedBox(
-      width: MediaQuery.of(context).size.width / 2.5,
       height: 50,
       child: ElevatedButton(
         onPressed: () {
@@ -318,14 +358,18 @@ class _RegisterState extends State<Register> {
           side: BorderSide(
             width: 5.0,
             color: Colors.black38,
-            style: type == selectedType ? BorderStyle.solid : BorderStyle.none,
+            style: type == selectedType
+                ? BorderStyle.solid
+                : BorderStyle.none,
           ),
         ),
         child: Text(
           label,
           style: GoogleFonts.lato(
-            color: type == selectedType ? Colors.black38 : Colors.white,
-            fontSize: 18.0,
+            color: type == selectedType
+                ? Colors.black38
+                : Colors.white,
+            fontSize: 14.0,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -335,20 +379,25 @@ class _RegisterState extends State<Register> {
 
   void showAlertDialog(BuildContext context) {
     Navigator.pop(context);
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text(
             "Error!",
-            style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+            style: GoogleFonts.lato(
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          content: Text("Email already Exists",),
+          content: const Text("Email already Exists"),
           actions: [
             TextButton(
               child: Text(
                 "OK",
-                 style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+                style: GoogleFonts.lato(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               onPressed: () {
                 Navigator.pop(context);
@@ -364,13 +413,14 @@ class _RegisterState extends State<Register> {
   void showLoaderDialog(BuildContext context) {
     AlertDialog alert = AlertDialog(
       content: Row(
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(width: 15),
-          const Text("Loading..."),
+        children: const [
+          CircularProgressIndicator(),
+          SizedBox(width: 15),
+          Text("Loading..."),
         ],
       ),
     );
+
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -397,23 +447,44 @@ class _RegisterState extends State<Register> {
       if (error.toString().contains('email-already-in-use')) {
         showAlertDialog(context);
       }
+
       print(error.toString());
     }
 
     user = credential?.user;
 
     if (user != null) {
+
       if (!user.emailVerified) {
         await user.sendEmailVerification();
       }
+
       await user.updateDisplayName(_displayName.text);
 
-      String name = (type == 0)
-          ? 'Dr. ${_displayName.text}'
-          : _displayName.text;
-      String accountType = (type == 0) ? 'doctor' : 'patient';
+      String name;
 
-      FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      if (type == 0) {
+        name = 'Dr. ${_displayName.text}';
+      } else if (type == 2) {
+        name = 'Nurse ${_displayName.text}';
+      } else {
+        name = _displayName.text;
+      }
+
+      String accountType;
+
+      if (type == 0) {
+        accountType = 'doctor';
+      } else if (type == 2) {
+        accountType = 'nurse';
+      } else {
+        accountType = 'patient';
+      }
+
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({
         'name': name,
         'type': accountType,
         'email': user.email,
@@ -431,27 +502,54 @@ class _RegisterState extends State<Register> {
         'profilePhoto': null,
       };
 
+      // DOCTOR DATA
       if (type == 0) {
         mp.addAll({
           'openHour': "09:00",
           'closeHour': "21:00",
           'rating': double.parse(
-            (3 + Random().nextDouble() * 1.9).toStringAsPrecision(2),
+            (3 + Random().nextDouble() * 1.9)
+                .toStringAsPrecision(2),
           ),
           'specification': null,
           'specialization': 'general',
         });
+
         globals.isDoctor = true;
       }
 
-      FirebaseFirestore.instance.collection(accountType).doc(user.uid).set(mp);
-      Navigator.of(
-        context,
-      ).pushNamedAndRemoveUntil('/home', (Route<dynamic> route) => false);
+      // NURSE DATA
+      if (type == 2) {
+        mp.addAll({
+          'openHour': "09:00",
+          'closeHour': "21:00",
+          'rating': double.parse(
+            (3 + Random().nextDouble() * 1.9)
+                .toStringAsPrecision(2),
+          ),
+          'department': 'general nursing',
+          'experience': null,
+          'hospital': null,
+        });
+      }
+
+      FirebaseFirestore.instance
+          .collection(accountType)
+          .doc(user.uid)
+          .set(mp);
+
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/NursingHome',
+            (Route<dynamic> route) => false,
+      );
     }
   }
 
   void _pushPage(BuildContext context, Widget page) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => page,
+      ),
+    );
   }
 }
