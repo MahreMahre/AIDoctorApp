@@ -30,12 +30,44 @@ class _NurseHomePageState extends State<NurseHomePage> {
   Future<void> _loadNurseData() async {
     if (user == null) return;
 
-    DocumentSnapshot doc =
-        await _firestore.collection("nurse").doc(user!.uid).get();
+    try {
+      DocumentSnapshot doc =
+          await _firestore.collection("nurse").doc(user!.uid).get();
 
-    setState(() {
-      nurseData = doc.data() as Map<String, dynamic>?;
+      if (!doc.exists) {
+        doc =
+            await _firestore.collection("users").doc(user!.uid).get();
+      }
+
+      setState(() {
+        nurseData = doc.data() as Map<String, dynamic>?;
+      });
+    } catch (e) {
+      print("Error loading nurse: $e");
+    }
+  }
+
+  // ✅ SAVE ONLINE STATUS
+  Future<void> _toggleOnline(bool value) async {
+    setState(() => isOnline = value);
+
+    await _firestore.collection("nurse").doc(user!.uid).update({
+      "isOnline": isOnline,
     });
+  }
+
+  // ✅ LOAD REQUESTS
+  Stream<QuerySnapshot> _getRequests() {
+    return _firestore.collection("nurse_requests").snapshots();
+  }
+
+  // ✅ LOAD TASKS
+  Stream<QuerySnapshot> _getTasks() {
+    return _firestore
+        .collection("nurse")
+        .doc(user!.uid)
+        .collection("tasks")
+        .snapshots();
   }
 
   void _logout() async {
@@ -52,7 +84,6 @@ class _NurseHomePageState extends State<NurseHomePage> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
 
-      // APP BAR
       appBar: AppBar(
         backgroundColor: Colors.indigo[900],
         title: Text(
@@ -75,161 +106,30 @@ class _NurseHomePageState extends State<NurseHomePage> {
 
                   const SizedBox(height: 20),
 
-                  // PROFILE CARD
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.shade300,
-                          blurRadius: 10,
-                        )
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-
-                        CircleAvatar(
-                          radius: 35,
-                          backgroundColor: Colors.indigo,
-                          child: Text(
-                            nurseData!['name'][0],
-                            style: const TextStyle(
-                              fontSize: 22,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 15),
-
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                nurseData!['name'],
-                                style: GoogleFonts.lato(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                nurseData!['email'] ?? '',
-                                style: GoogleFonts.lato(
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                "Department: ${nurseData!['department'] ?? 'N/A'}",
-                                style: GoogleFonts.lato(
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // PROFILE
+                  _profileCard(),
 
                   const SizedBox(height: 20),
 
-                  // ONLINE / OFFLINE TOGGLE
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          isOnline ? "Online" : "Offline",
-                          style: GoogleFonts.lato(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: isOnline ? Colors.green : Colors.red,
-                          ),
-                        ),
-                        Switch(
-                          value: isOnline,
-                          onChanged: (val) {
-                            setState(() {
-                              isOnline = val;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+                  // ONLINE SWITCH
+                  _onlineCard(),
 
                   const SizedBox(height: 20),
 
                   // QUICK ACTIONS
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "Quick Actions",
-                        style: GoogleFonts.lato(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      childAspectRatio: 1.3,
-                      children: [
-
-                        _actionCard("Patients", Icons.people, Colors.blue),
-                        _actionCard("Requests", Icons.notifications, Colors.orange),
-                        _actionCard("Appointments", Icons.calendar_today, Colors.green),
-                        _actionCard("Tasks", Icons.task, Colors.purple),
-
-                      ],
-                    ),
-                  ),
+                  _quickActions(),
 
                   const SizedBox(height: 20),
 
-                  // TODAY TASKS
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "Today's Tasks",
-                        style: GoogleFonts.lato(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+                  // REQUESTS FROM PATIENTS
+                  _sectionTitle("Patient Requests"),
+                  _requestsList(),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 20),
 
-                  _taskItem("Check patient vitals"),
-                  _taskItem("Administer medication"),
-                  _taskItem("Update patient records"),
+                  // TASKS
+                  _sectionTitle("My Tasks"),
+                  _tasksList(),
 
                   const SizedBox(height: 30),
                 ],
@@ -238,42 +138,179 @@ class _NurseHomePageState extends State<NurseHomePage> {
     );
   }
 
-  Widget _actionCard(String title, IconData icon, Color color) {
-    return Card(
-      shape: RoundedRectangleBorder(
+  // ---------------- PROFILE ----------------
+  Widget _profileCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: Colors.indigo,
+            child: Text(
+              nurseData!['name']?[0] ?? "N",
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 15),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                nurseData!['name'] ?? '',
+                style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+              ),
+              Text(nurseData!['email'] ?? ''),
+              Text("Dept: ${nurseData!['department'] ?? 'General'}"),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  // ---------------- ONLINE ----------------
+  Widget _onlineCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(15),
       ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            isOnline ? "Online" : "Offline",
+            style: GoogleFonts.lato(
+              color: isOnline ? Colors.green : Colors.red,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Switch(
+            value: isOnline,
+            onChanged: _toggleOnline,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------- ACTIONS ----------------
+  Widget _quickActions() {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      childAspectRatio: 1.2,
+      children: [
+
+        _action("Patients", Icons.people, () {
+          Navigator.pushNamed(context, "/patients");
+        }),
+
+        _action("Requests", Icons.notifications, () {
+          // already shown below
+        }),
+
+        _action("Appointments", Icons.calendar_today, () {
+          Navigator.pushNamed(context, "/appointments");
+        }),
+
+        _action("Profile", Icons.person, () {
+          Navigator.pushNamed(context, "/profile");
+        }),
+      ],
+    );
+  }
+
+  Widget _action(String title, IconData icon, VoidCallback onTap) {
+    return Card(
       child: InkWell(
-        onTap: () {},
+        onTap: onTap,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 35),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: GoogleFonts.lato(fontWeight: FontWeight.bold),
-            ),
+            Icon(icon, color: Colors.indigo),
+            const SizedBox(height: 8),
+            Text(title),
           ],
         ),
       ),
     );
   }
 
-  Widget _taskItem(String task) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle_outline, color: Colors.indigo),
-          const SizedBox(width: 10),
-          Text(task, style: GoogleFonts.lato()),
-        ],
+  // ---------------- REQUESTS ----------------
+  Widget _requestsList() {
+    return StreamBuilder(
+      stream: _getRequests(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const CircularProgressIndicator();
+        }
+
+        final docs = snapshot.data!.docs;
+
+        return Column(
+          children: docs.map((doc) {
+            return ListTile(
+              title: Text(doc['patientName'] ?? "Patient"),
+              subtitle: Text(doc['message'] ?? ""),
+              trailing: ElevatedButton(
+                onPressed: () {
+                  _firestore.collection("nurse_requests").doc(doc.id).update({
+                    "status": "accepted",
+                    "nurseId": user!.uid,
+                  });
+                },
+                child: const Text("Accept"),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  // ---------------- TASKS ----------------
+  Widget _tasksList() {
+    return StreamBuilder(
+      stream: _getTasks(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox();
+
+        final docs = snapshot.data!.docs;
+
+        return Column(
+          children: docs.map((doc) {
+            return ListTile(
+              leading: const Icon(Icons.check_circle),
+              title: Text(doc['title'] ?? ""),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          title,
+          style: GoogleFonts.lato(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }

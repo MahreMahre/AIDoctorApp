@@ -1,36 +1,10 @@
-// chatbot_screen.dart (Updated: Removed image, added TTS, saved history to SharedPrefs)
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// import 'package:google_fonts/google_fonts.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-
-class GeminiService {
-  final model = GenerativeModel(
-    model: 'gemini-pro',
-    apiKey: 'AIzaSyBgMAMmHOlUcqSnbYaz12SZujDcztHZ7a8',
-  );
-
-  late final ChatSession chat;
-
-  GeminiService() {
-    chat = model.startChat();
-  }
-
-  Future<String> sendPrompt(String prompt) async {
-    try {
-      final content = Content.text(prompt);
-      final response = await chat.sendMessage(content);
-      return response.text ?? "I couldn't understand that.";
-    } catch (e) {
-      return "Error: ${e.toString()}";
-    }
-  }
-}
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -40,202 +14,235 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final _controller = TextEditingController();
-  final GeminiService _gemini = GeminiService();
-  final FlutterTts _flutterTts = FlutterTts();
+  final TextEditingController _controller = TextEditingController();
+  final FlutterTts _tts = FlutterTts();
+
   final List<Map<String, String>> _messages = [];
   late stt.SpeechToText _speech;
   bool _isListening = false;
 
-  final List<String> healthTips = [
-    "Drink at least 8 glasses of water daily",
-    "Get 7–8 hours of quality sleep",
-    "Exercise 30 minutes a day, 5 days a week",
-    "Eat more fruits and vegetables",
-    "Limit sugar and salt intake",
-    "Manage stress through mindfulness or hobbies"
+  bool showQuestionnaire = true;
+
+  final List<Map<String, dynamic>> questions = [
+    {"q": "Do you have fever?", "selected": false},
+    {"q": "Do you have headache?", "selected": false},
+    {"q": "Do you have cough or cold?", "selected": false},
+    {"q": "Do you feel body pain or fatigue?", "selected": false},
   ];
 
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+    _loadChat();
 
-    // Add initial SmartCare bot message
     _messages.add({
-      'role': 'bot',
-      'text': "Hello! This is Symptom Checkerhi Bot. How may I help you today?",
+      "role": "bot",
+      "text": "👋 Hi! I am your Offline Symptom Checker Assistant."
     });
-
-    // Save to shared prefs if needed
-
   }
 
-
-  Future<void> _loadChatHistory() async {
+  // ---------------- CHAT SAVE ----------------
+  Future<void> _loadChat() async {
     final prefs = await SharedPreferences.getInstance();
-    final history = prefs.getString('chat_history');
-    if (history != null) {
-      setState(() {
-        _messages.addAll(List<Map<String, String>>.from(json.decode(history)));
-      });
+    final data = prefs.getString("chat_history");
+    if (data != null) {
+      _messages.addAll(List<Map<String, String>>.from(json.decode(data)));
+      setState(() {});
     }
   }
 
-  Future<void> _saveChatHistory() async {
+  Future<void> _saveChat() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('chat_history', json.encode(_messages));
+    prefs.setString("chat_history", json.encode(_messages));
   }
 
+  // ---------------- TTS ----------------
   void _speak(String text) async {
-    await _flutterTts.speak(text);
+    await _tts.speak(text);
   }
 
-  void _sendMessage({String? input}) async {
-    final text = input ?? _controller.text.trim();
-    if (text.isEmpty) return;
+  // ---------------- SYMPTOM LOGIC (NO AI) ----------------
+  String getSymptomResponse(String text) {
+    text = text.toLowerCase();
 
-    setState(() {
-      _messages.add({ 'role': 'user', 'text': text });
-      _controller.clear();
-    });
-    await _saveChatHistory();
-
-    final response = await _gemini.sendPrompt(text);
-
-    setState(() {
-      _messages.add({ 'role': 'bot', 'text': response });
-    });
-    _speak(response);
-    await _saveChatHistory();
-  }
-
-  void _startListening() async {
-    if (!_isListening && !_speech.isListening) {
-      bool available = await _speech.initialize();
-      if (available) {
-        setState(() => _isListening = true);
-        _speech.listen(onResult: (result) {
-          setState(() => _controller.text = result.recognizedWords);
-        });
-      }
-    } else if (_speech.isListening) {
-      setState(() => _isListening = false);
-      _speech.stop();
+    // HIGH FEVER
+    if (text.contains("high fever") || text.contains("very hot") || text.contains("103")) {
+      return "⚠️ Possible: Severe Fever / Infection\n\nAdvice:\n- Take paracetamol\n- Drink fluids\n- Visit doctor if >3 days";
     }
+
+    // FEVER
+    if (text.contains("fever") || text.contains("temperature")) {
+      return "🤒 Possible: Viral Fever\n\nAdvice:\n- Rest\n- Hydration\n- Paracetamol if needed";
+    }
+
+    // HEADACHE
+    if (text.contains("headache") || text.contains("head pain")) {
+      return "🤕 Possible: Stress / Migraine\n\nAdvice:\n- Rest in dark room\n- Drink water\n- Reduce screen time";
+    }
+
+    // COUGH
+    if (text.contains("cough") || text.contains("cold")) {
+      return "🤧 Possible: Cold / Flu\n\nAdvice:\n- Warm fluids\n- Steam inhalation\n- Rest";
+    }
+
+    // BODY PAIN
+    if (text.contains("body pain") || text.contains("muscle pain")) {
+      return "💢 Possible: Viral infection / Fatigue\n\nAdvice:\n- Rest\n- Warm bath\n- Pain relief medicine";
+    }
+
+    // STOMACH PAIN
+    if (text.contains("stomach") || text.contains("abdominal pain")) {
+      return "🤢 Possible: Gas / Indigestion\n\nAdvice:\n- Light food\n- Avoid oily food\n- Drink warm water";
+    }
+
+    // BREATHING
+    if (text.contains("breath") || text.contains("breathing issue")) {
+      return "🚨 Possible: Respiratory issue\n\nAdvice:\n- Seek medical help immediately";
+    }
+
+    return "❗ I couldn't identify exact symptoms.\nPlease describe more clearly (fever, cough, headache etc).";
   }
 
-  void _showHealthTips() {
-    final tipText = "**Basic Healthcare Tips:**\n\n${healthTips.map((e) => '- $e').join('\n')}";
+  // ---------------- SEND MESSAGE ----------------
+  void _sendMessage(String text) async {
+    if (text.trim().isEmpty) return;
+
     setState(() {
-      _messages.add({ 'role': 'bot', 'text': tipText });
+      _messages.add({"role": "user", "text": text});
     });
-    _speak("Here are some health tips for you.");
-    _saveChatHistory();
+
+    _controller.clear();
+
+    final response = getSymptomResponse(text);
+
+    setState(() {
+      _messages.add({"role": "bot", "text": response});
+    });
+
+    _speak(response);
+    await _saveChat();
   }
 
+  // ---------------- QUESTIONNAIRE ----------------
+  void _submitQuestionnaire() {
+    String input = questions
+        .map((e) => "${e['q']} : ${e['selected'] ? "Yes" : "No"}")
+        .join("\n");
+
+    setState(() => showQuestionnaire = false);
+
+    _sendMessage("Symptom Report:\n$input");
+  }
+
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue.shade100,
+      backgroundColor: Colors.blue.shade50,
       appBar: AppBar(
-        backgroundColor: Colors.blue.shade100,
-        iconTheme: const IconThemeData(color: Colors.black),
-        elevation: 0,
-        title: Text(
-          "AI Symptoms Checker",
-          style: GoogleFonts.lato(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
+        title: const Text("Offline Symptom Checker"),
+        backgroundColor: Colors.blue.shade200,
         actions: [
-          IconButton(icon: const Icon(Icons.mic), onPressed: _startListening),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == "tips") {
-                _showHealthTips();
-              }
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () async {
+              _messages.clear();
+              setState(() {});
+              final prefs = await SharedPreferences.getInstance();
+              prefs.remove("chat_history");
             },
-            itemBuilder: (ctx) => const [
-              PopupMenuItem(value: "tips", child: Text("Show Health Tips")),
-            ],
-          ),
+          )
         ],
       ),
+
       body: Column(
         children: [
+          // ---------------- QUESTIONNAIRE ----------------
+          if (showQuestionnaire)
+            Container(
+              padding: const EdgeInsets.all(12),
+              color: Colors.white,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "🩺 Quick Health Check",
+                    style: GoogleFonts.lato(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+
+                  ...questions.map((q) {
+                    return Row(
+                      children: [
+                        Expanded(child: Text(q["q"])),
+                        Checkbox(
+                          value: q["selected"],
+                          onChanged: (v) {
+                            setState(() => q["selected"] = v);
+                          },
+                        )
+                      ],
+                    );
+                  }),
+
+                  ElevatedButton(
+                    onPressed: _submitQuestionnaire,
+                    child: const Text("Check Symptoms"),
+                  )
+                ],
+              ),
+            ),
+
+          // ---------------- CHAT ----------------
           Expanded(
             child: ListView.builder(
               itemCount: _messages.length,
-              padding: const EdgeInsets.all(12),
-              itemBuilder: (_, i) {
+              itemBuilder: (context, i) {
                 final msg = _messages[i];
-                final isUser = msg['role'] == 'user';
+                final isUser = msg["role"] == "user";
+
                 return Align(
-                  alignment: isUser
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
+                  alignment:
+                      isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
-                    constraints: const BoxConstraints(maxWidth: 300),
+                    margin: const EdgeInsets.all(8),
                     padding: const EdgeInsets.all(12),
-                    margin:
-                    const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                     decoration: BoxDecoration(
-                      color: isUser ? Colors.blue[50] : Colors.grey[200],
+                      color: isUser
+                          ? Colors.blue.shade100
+                          : Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: MarkdownBody(
-                      data: msg['text'] ?? '',
-                      styleSheet: MarkdownStyleSheet(
-                        p: GoogleFonts.lato(fontSize: 16),
-                        strong: const TextStyle(fontWeight: FontWeight.bold),
-                     listBullet: GoogleFonts.lato(fontSize: 16),
-                      ), 
-                    ),
+                    child: MarkdownBody(data: msg["text"] ?? ""),
                   ),
                 );
               },
             ),
           ),
+
+          // ---------------- INPUT ----------------
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    onSubmitted: (_) => _sendMessage(),
-                    // style: GoogleFonts.lato(),
-                    decoration: InputDecoration(
-                      hintText: 'Type your question...',
-                      // hintStyle: GoogleFonts.lato(color: Colors.black45),
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 10, horizontal: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
+                    decoration: const InputDecoration(
+                      hintText: "Describe your symptoms...",
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade400,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: () => _sendMessage(),
-                  ),
-                ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: () => _sendMessage(_controller.text),
+                )
               ],
             ),
-          ),
+          )
         ],
       ),
     );
