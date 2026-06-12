@@ -126,7 +126,7 @@ class _MainPagePatientState extends State<MainPagePatient>
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ChatScreen()),
+                  MaterialPageRoute(builder: (context) => const ChatScreen(userId: '',)),
                 );
               },
               child: const Icon(Icons.mark_unread_chat_alt_sharp),

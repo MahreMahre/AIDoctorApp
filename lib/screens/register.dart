@@ -357,7 +357,7 @@ class _RegisterState extends State<Register> {
           ),
           side: BorderSide(
             width: 5.0,
-            color: Colors.black38,
+            color: Colors.black26,
             style: type == selectedType
                 ? BorderStyle.solid
                 : BorderStyle.none,
@@ -367,7 +367,7 @@ class _RegisterState extends State<Register> {
           label,
           style: GoogleFonts.lato(
             color: type == selectedType
-                ? Colors.black38
+                ? Colors.deepPurple[400]
                 : Colors.white,
             fontSize: 14.0,
             fontWeight: FontWeight.bold,
