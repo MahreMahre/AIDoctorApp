@@ -9,11 +9,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/intl.dart';
 import 'package:translator/translator.dart';
-
+import 'package:permission_handler/permission_handler.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 class ChatScreen extends StatefulWidget {
   final String userId;
-  final String userType; // 'patient' or 'doctor' or 'nurse'
+  final String userType;
   
   const ChatScreen({
     super.key, 
@@ -25,17 +26,25 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final FlutterTts _tts = FlutterTts();
   final GoogleTranslator _translator = GoogleTranslator();
+  final FocusNode _focusNode = FocusNode();
 
   final List<Map<String, dynamic>> _messages = [];
   late stt.SpeechToText _speech;
   bool _isListening = false;
   bool _isTranslating = false;
+  bool _speechAvailable = false;
+  bool _isThinking = false;
   String _selectedLanguage = 'en';
+  final ScrollController _scrollController = ScrollController();
+  
+  // AI Configuration
+  late GenerativeModel _aiModel;
+  final String _apiKey = 'YOUR_GEMINI_API_KEY'; // Replace with your API key
+  
   final Map<String, String> _languages = {
     'en': 'English',
     'es': 'Spanish',
@@ -54,39 +63,404 @@ class _ChatScreenState extends State<ChatScreen> {
   bool showQuestionnaire = true;
 
   final List<Map<String, dynamic>> questions = [
-    {"q": "Do you have fever?", "selected": false},
-    {"q": "Do you have headache?", "selected": false},
-    {"q": "Do you have cough or cold?", "selected": false},
-    {"q": "Do you feel body pain or fatigue?", "selected": false},
+    {"q": "Do you have fever?", "selected": false, "icon": Icons.thermostat},
+    {"q": "Do you have headache?", "selected": false, "icon": Icons.healing},
+    {"q": "Do you have cough or cold?", "selected": false, "icon": Icons.medical_information},
+    {"q": "Do you feel body pain or fatigue?", "selected": false, "icon": Icons.fitness_center},
   ];
 
-  // Doctor suggestions
   List<Map<String, dynamic>> _suggestedDoctors = [];
   bool _loadingDoctors = false;
   Map<String, dynamic>? _selectedDoctor;
   
-  // Appointments
   List<Map<String, dynamic>> _userAppointments = [];
   bool _loadingAppointments = false;
 
   @override
   void initState() {
     super.initState();
+    _initializeAI();
     _initSpeech();
     _loadChat();
     _loadUserAppointments();
-    _messages.add({
-      "role": "bot",
-      "text": "👋 Hi! I am your Symptom Checker Assistant. I can understand voice commands and translate messages. How can I help you today?",
-      "timestamp": DateTime.now(),
-      "originalText": "👋 Hi! I am your Symptom Checker Assistant. I can understand voice commands and translate messages. How can I help you today?"
+    _addWelcomeMessage();
+    
+    // Add listener to scroll when keyboard appears
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        _scrollToBottom();
+      }
     });
   }
 
-  // ---------------- SPEECH TO TEXT INIT ----------------
-  void _initSpeech() async {
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _addWelcomeMessage() {
+    _messages.add({
+      "role": "bot",
+      "text": "👋 Hi! I'm your AI Health Assistant.\n\nI can:\n✅ Analyze your symptoms\n✅ Provide medical advice\n✅ Recommend doctors\n✅ Book appointments\n✅ Understand voice commands\n✅ Translate messages\n\n**How to use:**\n• Describe your symptoms like \"I have fever and headache\"\n• Type \"find doctor\" to see all doctors\n• Long press any message to translate\n• Tap microphone for voice input\n\nHow can I help you today?",
+      "timestamp": DateTime.now(),
+      "originalText": "👋 Hi! I'm your AI Health Assistant powered by Google Gemini.\n\nI can:\n✅ Analyze your symptoms\n✅ Provide medical advice\n✅ Recommend doctors\n✅ Book appointments\n✅ Understand voice commands\n✅ Translate messages\n\n**How to use:**\n• Describe your symptoms like \"I have fever and headache\"\n• Type \"find doctor\" to see all doctors\n• Long press any message to translate\n• Tap microphone for voice input\n\nHow can I help you today?"
+    });
+    _scrollToBottom();
+  }
+
+  // ---------------- AI INITIALIZATION ----------------
+  void _initializeAI() {
+    try {
+      _aiModel = GenerativeModel(
+        model: 'gemini-pro',
+        apiKey: _apiKey,
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 2048,
+        ),
+      );
+    } catch (e) {
+      print('Error initializing AI: $e');
+    }
+  }
+
+  // ---------------- AI RESPONSE ----------------
+  Future<String> _getAIResponse(String userMessage) async {
+    try {
+      String chatContext = '';
+      for (var msg in _messages.reversed.take(6)) {
+        chatContext = '${msg['role']}: ${msg['text']}\n$chatContext';
+      }
+      
+      const systemPrompt = """
+      You are a professional medical assistant AI. Your role:
+      1. Analyze symptoms carefully and provide helpful medical advice
+      2. Never give emergency medical advice - always tell users to call emergency services for emergencies
+      3. Recommend seeing a doctor for serious symptoms
+      4. Be empathetic, professional, and friendly
+      5. Provide health tips and preventive measures
+      6. Keep responses concise but informative (max 200 words)
+      7. Always start with emoji related to symptoms (🤒 for fever, 🤕 for headache, etc.)
+      
+      Remember: You are not a replacement for professional medical advice.
+      Always recommend consulting healthcare professionals when needed.
+      """;
+      
+      final prompt = "$systemPrompt\n\nChat History:\n$chatContext\n\nUser: $userMessage\n\nAssistant:";
+      
+      final response = await _aiModel.generateContent([Content.text(prompt)]);
+      
+      if (response.text != null && response.text!.isNotEmpty) {
+        return response.text!;
+      } else {
+        return _getFallbackResponse(userMessage);
+      }
+    } catch (e) {
+      print('AI Error: $e');
+      return _getFallbackResponse(userMessage);
+    }
+  }
+
+  String _getFallbackResponse(String userMessage) {
+    String lowerMsg = userMessage.toLowerCase();
+    
+    if (lowerMsg.contains('fever')) {
+      return "🤒 **Fever Analysis**\n\nBased on your symptoms, here's what I recommend:\n\n• **Rest** and stay hydrated\n• Take **paracetamol** if needed\n• Monitor temperature regularly\n• Consult a **General Physician** if fever persists >3 days\n\n**Would you like me to show you available doctors?** (Type 'find doctor' to see list)";
+    } else if (lowerMsg.contains('headache')) {
+      return "🤕 **Headache Relief Tips**\n\n• Rest in a dark, quiet room\n• Stay hydrated\n• Apply cold compress\n• Limit screen time\n• Try relaxation techniques\n\nIf severe or persistent, please consult a **Neurologist**.\n\n**Need a doctor? Type 'find doctor' to see specialists near you.**";
+    } else if (lowerMsg.contains('cough') || lowerMsg.contains('cold')) {
+      return "🤧 **Cold & Cough Remedies**\n\n• Warm fluids (tea, soup)\n• Steam inhalation\n• Gargle with salt water\n• Take honey for cough\n• Get plenty of rest\n\nSee an **ENT Specialist** if symptoms worsen.\n\n**Want to consult a doctor? Type 'find doctor' to book an appointment.**";
+    } else if (lowerMsg.contains('pain')) {
+      return "💢 **Pain Management**\n\n• Apply ice or heat as appropriate\n• Gentle stretching\n• Over-the-counter pain relief\n• Rest the affected area\n\nConsult an **Orthopedic Specialist** for persistent pain.\n\n**Show me doctors - Type 'find doctor' to see available specialists.**";
+    } else if (lowerMsg.contains('stomach') || lowerMsg.contains('abdominal')) {
+      return "🍽️ **Stomach Issues**\n\n• Drink warm water\n• Avoid spicy/oily food\n• Eat small meals\n• Ginger tea for relief\n\nConsult a **Gastroenterologist** if symptoms persist.\n\n**Need medical help? Type 'find doctor' to see gastroenterologists.**";
+    } else if (lowerMsg.contains('breath') || lowerMsg.contains('breathing')) {
+      return "🫁 **Breathing Issues**\n\n• Sit upright\n• Practice deep breathing\n• Use a humidifier\n• Avoid triggers\n\n**IMPORTANT:** If severe, seek immediate medical attention.\n\nConsult a **Pulmonologist** for proper diagnosis.\n\n**Type 'find doctor' to see pulmonologists near you.**";
+    } else if (lowerMsg.contains('hello') || lowerMsg.contains('hi')) {
+      return "👋 **Hello!**\n\nI'm your AI Health Assistant. I can help you with:\n\n• Symptom analysis\n• Health advice\n• Doctor recommendations\n• Appointment booking\n\n**How can I assist you today?** Try describing any symptoms you have!";
+    } else {
+      return "Thank you for sharing. As a medical AI assistant, I recommend consulting a healthcare professional for a proper diagnosis.\n\n**Would you like me to help you find a doctor?**\n\n👉 Just type **'find doctor'** to see all available doctors near you!";
+    }
+  }
+
+  // ---------------- DOCTOR FUNCTIONS ----------------
+  void _showDoctorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.95,
+          height: MediaQuery.of(context).size.height * 0.85,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.blue, Colors.indigo],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.medical_services, color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '👨‍⚕️ Available Doctors',
+                      style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .where('type', isEqualTo: 'doctor')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    final doctors = snapshot.data!.docs;
+                    
+                    if (doctors.isEmpty) {
+                      return const Center(child: Text('No doctors found'));
+                    }
+                    
+                    return ListView.builder(
+                      itemCount: doctors.length,
+                      itemBuilder: (context, index) {
+                        final data = doctors[index].data() as Map<String, dynamic>;
+                        final doctor = {
+                          'id': doctors[index].id,
+                          'name': data['name'] ?? 'Unknown',
+                          'specialization': data['specialization'] ?? 'general',
+                          'specification': data['specification'] ?? '',
+                          'rating': data['rating'] ?? 4.0,
+                          'email': data['email'] ?? 'N/A',
+                          'openHour': data['openHour'] ?? '09:00 AM',
+                          'closeHour': data['closeHour'] ?? '09:00 PM',
+                          'address': data['address'] ?? 'Address not specified',
+                          'bio': data['bio'] ?? 'Experienced doctor',
+                          'phone': data['phone'] ?? 'Not available',
+                          'profilePhoto': data['profilePhoto'] ?? '',
+                        };
+                        
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              radius: 30,
+                              backgroundImage: doctor['profilePhoto'] != null && doctor['profilePhoto'].isNotEmpty
+                                  ? NetworkImage(doctor['profilePhoto'])
+                                  : null,
+                              backgroundColor: Colors.blue.shade100,
+                              child: doctor['profilePhoto'] == null || doctor['profilePhoto'].isEmpty
+                                  ? Text(doctor['name'][0], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))
+                                  : null,
+                            ),
+                            title: Text(
+                              'Dr. ${doctor['name']}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    (doctor['specification'] != null && doctor['specification'].isNotEmpty)
+                                        ? doctor['specification'].toString().toUpperCase()
+                                        : doctor['specialization'].toString().toUpperCase(),
+                                    style: TextStyle(fontSize: 10, color: Colors.blue.shade700, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.star, size: 14, color: Colors.amber.shade700),
+                                    const SizedBox(width: 4),
+                                    Text('${doctor['rating']}', style: const TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    Icon(Icons.access_time, size: 12, color: Colors.grey.shade600),
+                                    const SizedBox(width: 4),
+                                    Text('${doctor['openHour']} - ${doctor['closeHour']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_on, size: 12, color: Colors.grey.shade600),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(doctor['address'], style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    ),
+                                  ],
+                                ),
+                                if (doctor['phone'] != 'Not available')
+                                  Row(
+                                    children: [
+                                      Icon(Icons.phone, size: 12, color: Colors.grey.shade600),
+                                      const SizedBox(width: 4),
+                                      Text(doctor['phone'], style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                            trailing: ElevatedButton(
+                              onPressed: () {
+                                _bookAppointment(context, doctor, "General consultation");
+                                Navigator.pop(context);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              ),
+                              child: const Text('Book', style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDoctorRecommendations(String symptoms) async {
+    setState(() {
+      _loadingDoctors = true;
+      _suggestedDoctors = [];
+    });
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('type', isEqualTo: 'doctor')
+          .get();
+
+      final allDoctors = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'] ?? 'Unknown',
+          'specialization': (data['specialization'] ?? '').toString().toLowerCase(),
+          'specification': (data['specification'] ?? '').toString().toLowerCase(),
+          'rating': data['rating'] ?? 4.0,
+          'email': data['email'] ?? 'N/A',
+          'openHour': data['openHour'] ?? '09:00 AM',
+          'closeHour': data['closeHour'] ?? '09:00 PM',
+          'address': data['address'] ?? 'Address not specified',
+          'bio': data['bio'] ?? 'Experienced doctor',
+          'phone': data['phone'] ?? 'Not available',
+          'profilePhoto': data['profilePhoto'] ?? '',
+        };
+      }).toList();
+
+      final lowerSymptoms = symptoms.toLowerCase();
+      final List<Map<String, dynamic>> matchedDoctors = [];
+      
+      for (var doc in allDoctors) {
+        int priorityScore = 0;
+        final spec = doc['specialization'] as String;
+        final specification = doc['specification'] as String;
+        
+        // Check specification first
+        if (lowerSymptoms.contains('fever') && (specification.contains('general') || specification.contains('physician') || spec.contains('general'))) {
+          priorityScore += 5;
+        }
+        if (lowerSymptoms.contains('headache') && (specification.contains('neuro') || specification.contains('neurologist') || spec.contains('general'))) {
+          priorityScore += 5;
+        }
+        if ((lowerSymptoms.contains('cough') || lowerSymptoms.contains('cold')) && (specification.contains('ent') || specification.contains('ear') || spec.contains('ent'))) {
+          priorityScore += 5;
+        }
+        if ((lowerSymptoms.contains('pain') || lowerSymptoms.contains('muscle')) && (specification.contains('ortho') || specification.contains('bone') || spec.contains('orthopedic'))) {
+          priorityScore += 5;
+        }
+        if (lowerSymptoms.contains('stomach') && (specification.contains('gastro') || specification.contains('stomach') || spec.contains('gastroenterologist'))) {
+          priorityScore += 5;
+        }
+        
+        if (priorityScore > 0) {
+          doc['priorityScore'] = priorityScore;
+          matchedDoctors.add(doc);
+        }
+      }
+      
+      matchedDoctors.sort((a, b) => (b['priorityScore'] ?? 0).compareTo(a['priorityScore'] ?? 0));
+      
+      setState(() {
+        _suggestedDoctors = matchedDoctors.isNotEmpty ? matchedDoctors : allDoctors.take(3).toList();
+        _loadingDoctors = false;
+      });
+      
+      if (_suggestedDoctors.isNotEmpty) {
+        _addBotMessage("👨‍⚕️ **Recommended Doctors**\n\nBased on your symptoms, I've found ${_suggestedDoctors.length} doctor(s) who can help you.\n\nPlease select a doctor below to book an appointment:");
+      }
+    } catch (e) {
+      setState(() {
+        _suggestedDoctors = [];
+        _loadingDoctors = false;
+      });
+      _showSnackBar('Error fetching doctors: $e');
+    }
+  }
+
+  // ---------------- SPEECH TO TEXT ----------------
+  Future<void> _initSpeech() async {
+    await _r9yMnTm4NSzvG9rrwjM2ec8xZgh1cafXH8();
+    
     _speech = stt.SpeechToText();
-    bool available = await _speech.initialize(
+    _speechAvailable = await _speech.initialize(
       onStatus: (status) {
         print('Speech status: $status');
         if (status == 'notListening' && _isListening) {
@@ -96,56 +470,80 @@ class _ChatScreenState extends State<ChatScreen> {
       onError: (error) {
         print('Speech error: $error');
         setState(() => _isListening = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Speech error: $error')),
-        );
+        _showSnackBar('Speech error: ${error.errorMsg}');
       },
     );
     
-    if (!available) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Speech recognition not available')),
-      );
+    if (!_speechAvailable) {
+      _showSnackBar('Speech recognition not available');
+    }
+  }
+  
+  Future<void> _r9yMnTm4NSzvG9rrwjM2ec8xZgh1cafXH8() async {
+    PermissionStatus status = await Permission.microphone.status;
+    if (!status.isGranted) {
+      status = await Permission.microphone.request();
+    }
+    if (!status.isGranted) {
+      _showSnackBar('Microphone permission is required for voice input');
     }
   }
 
-  // ---------------- VOICE INPUT ----------------
-  void _startListening() async {
-    if (!_speech.isAvailable) {
-      _initSpeech();
+  Future<void> _startListening() async {
+    if (!_speechAvailable) {
+      await _initSpeech();
     }
     
-    bool available = await _speech.initialize();
-    if (available) {
-      setState(() => _isListening = true);
-      _speech.listen(
+    if (!_speechAvailable) {
+      _showSnackBar('Speech recognition is not available');
+      return;
+    }
+    
+    if (_speech.isListening) {
+      _stopListening();
+      return;
+    }
+    
+    setState(() => _isListening = true);
+    
+    try {
+      await _speech.listen(
         onResult: (result) {
+          print('Speech result: ${result.recognizedWords}');
           setState(() {
-            _isListening = false;
-            if (result.finalResult) {
-              _controller.text = result.recognizedWords;
-              _sendMessage(_controller.text);
-              _controller.clear();
-            }
+            _controller.text = result.recognizedWords;
           });
+          
+          if (result.finalResult && _controller.text.isNotEmpty) {
+            _stopListening();
+            _sendMessage(_controller.text);
+            _controller.clear();
+          }
         },
-        listenFor: const Duration(seconds: 10),
-        pauseFor: const Duration(seconds: 5),
+        listenFor: const Duration(seconds: 15),
+        pauseFor: const Duration(seconds: 3),
         partialResults: true,
         localeId: 'en_US',
+        onSoundLevelChange: (level) {},
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Speech recognition not available')),
-      );
+    } catch (e) {
+      print('Error starting speech: $e');
+      setState(() => _isListening = false);
+      _showSnackBar('Error starting voice input');
     }
   }
 
   void _stopListening() {
     if (_speech.isListening) {
       _speech.stop();
-      setState(() => _isListening = false);
     }
+    setState(() => _isListening = false);
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   // ---------------- TRANSLATION ----------------
@@ -163,9 +561,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _translateMessage(int index, String text, String targetLang) async {
     setState(() => _isTranslating = true);
-    
     final translated = await _translateText(text, targetLang);
-    
     setState(() {
       _messages[index]['translatedText'] = translated;
       _messages[index]['translationLang'] = targetLang;
@@ -176,7 +572,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showTranslationDialog(Map<String, dynamic> message, int index) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true, // This fixes overflow for translation dialog
       builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -184,15 +586,22 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Text(
               'Translate Message',
-              style: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.bold),
+              style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Original: ${message['text']}',
-              style: const TextStyle(fontStyle: FontStyle.italic),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Original: ${message['text']}',
+                style: const TextStyle(fontStyle: FontStyle.italic),
+              ),
             ),
             const SizedBox(height: 20),
-            const Text('Select Language:'),
+            const Text('Select Language:', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -206,6 +615,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     Navigator.pop(context);
                     _translateMessage(index, message['text'], lang.key);
                   },
+                  backgroundColor: Colors.grey.shade200,
+                  selectedColor: Colors.blue.shade100,
                 );
               }).toList(),
             ),
@@ -217,10 +628,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // ---------------- TEXT TO SPEECH ----------------
   void _speak(String text) async {
-    await _tts.setLanguage(_selectedLanguage);
-    await _tts.setSpeechRate(0.5);
-    await _tts.setPitch(1.0);
-    await _tts.speak(text);
+    try {
+      await _tts.setLanguage(_selectedLanguage);
+      await _tts.setSpeechRate(0.5);
+      await _tts.setPitch(1.0);
+      await _tts.speak(text);
+    } catch (e) {
+      print('TTS error: $e');
+    }
   }
 
   // ---------------- CHAT SAVE ----------------
@@ -228,14 +643,22 @@ class _ChatScreenState extends State<ChatScreen> {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString("chat_history_${widget.userId}");
     if (data != null) {
-      _messages.addAll(List<Map<String, dynamic>>.from(json.decode(data)));
+      List<dynamic> decoded = json.decode(data);
+      _messages.addAll(decoded.map((item) {
+        return {
+          'role': item['role'],
+          'text': item['text'],
+          'timestamp': item['timestamp'] != null ? DateTime.parse(item['timestamp']) : null,
+          'originalText': item['originalText'],
+        };
+      }).toList());
       setState(() {});
+      _scrollToBottom();
     }
   }
 
   Future<void> _saveChat() async {
     final prefs = await SharedPreferences.getInstance();
-    // Save only necessary fields
     final saveMessages = _messages.map((msg) {
       return {
         'role': msg['role'],
@@ -244,10 +667,10 @@ class _ChatScreenState extends State<ChatScreen> {
         'originalText': msg['originalText'],
       };
     }).toList();
-    prefs.setString("chat_history_${widget.userId}", json.encode(saveMessages));
+    await prefs.setString("chat_history_${widget.userId}", json.encode(saveMessages));
   }
 
-  // ---------------- LOAD USER APPOINTMENTS ----------------
+  // ---------------- APPOINTMENTS ----------------
   Future<void> _loadUserAppointments() async {
     setState(() => _loadingAppointments = true);
     
@@ -280,130 +703,39 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ---------------- FETCH DOCTORS FROM FIREBASE ----------------
-  Future<void> _fetchAndSuggestDoctors(String symptoms) async {
-    setState(() => _loadingDoctors = true);
-
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('type', isEqualTo: 'doctor')
-          .get();
-
-      final allDoctors = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Unknown',
-          'specialization': (data['specialization'] ?? '').toString().toLowerCase(),
-          'rating': data['rating'] ?? 4.0,
-          'email': data['email'] ?? 'N/A',
-          'openHour': data['openHour'] ?? '09:00',
-          'closeHour': data['closeHour'] ?? '21:00',
-          'address': data['address'] ?? 'Address not specified',
-          'bio': data['bio'] ?? 'Experienced doctor',
-          'phone': data['phone'] ?? 'Not available',
-          'profilePhoto': data['profilePhoto'] ?? '',
-        };
-      }).toList();
-
-      // Advanced matching logic with priority scoring
-      final lowerSymptoms = symptoms.toLowerCase();
-      final List<Map<String, dynamic>> matchedDoctors = [];
-      
-      for (var doc in allDoctors) {
-        int priorityScore = 0;
-        final spec = doc['specialization'] as String;
-        
-        if (lowerSymptoms.contains('fever') && (spec.contains('general') || spec.contains('physician'))) {
-          priorityScore += 3;
-        }
-        if (lowerSymptoms.contains('headache') && (spec.contains('neurologist') || spec.contains('general'))) {
-          priorityScore += 3;
-        }
-        if ((lowerSymptoms.contains('cough') || lowerSymptoms.contains('cold')) && (spec.contains('ent') || spec.contains('pulmonologist') || spec.contains('general'))) {
-          priorityScore += 3;
-        }
-        if ((lowerSymptoms.contains('pain') || lowerSymptoms.contains('fatigue')) && (spec.contains('orthopedic') || spec.contains('general') || spec.contains('rheumatologist'))) {
-          priorityScore += 2;
-        }
-        if (lowerSymptoms.contains('stomach') && (spec.contains('gastroenterologist') || spec.contains('general'))) {
-          priorityScore += 3;
-        }
-        if (lowerSymptoms.contains('breath') && (spec.contains('pulmonologist') || spec.contains('cardiologist'))) {
-          priorityScore += 4;
-        }
-        
-        if (priorityScore > 0) {
-          doc['priorityScore'] = priorityScore;
-          matchedDoctors.add(doc);
-        }
-      }
-      
-      // Sort by priority score (highest first)
-      matchedDoctors.sort((a, b) => (b['priorityScore'] ?? 0).compareTo(a['priorityScore'] ?? 0));
-      
-      setState(() {
-        _suggestedDoctors = matchedDoctors.isNotEmpty ? matchedDoctors : allDoctors.take(5).toList();
-        _selectedDoctor = null;
-      });
-      
-      // Add bot message about doctor suggestions
-      if (_suggestedDoctors.isNotEmpty) {
-        final doctorListMessage = "👨‍⚕️ Based on your symptoms, I've found ${_suggestedDoctors.length} doctor(s) who can help you.\n\nPlease select a doctor from the list below to view their details and book an appointment.";
-        _addBotMessage(doctorListMessage);
-      }
-    } catch (e) {
-      setState(() {
-        _suggestedDoctors = [];
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching doctors: $e')),
-      );
-    } finally {
-      setState(() => _loadingDoctors = false);
-    }
-  }
-
-  void _addBotMessage(String text) {
-    setState(() {
-      _messages.add({
-        "role": "bot", 
-        "text": text,
-        "timestamp": DateTime.now(),
-        "originalText": text
-      });
-    });
-    _speak(text);
-    _saveChat();
-  }
-
-  // ---------------- BOOK APPOINTMENT ----------------
   Future<void> _bookAppointment(BuildContext context, Map<String, dynamic> doctor, String symptoms) async {
-    DateTime? selectedDate;
-    TimeOfDay? selectedTime;
-    
-    // Date picker
     final date = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 30)),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            primaryColor: Colors.blue,
+            colorScheme: const ColorScheme.light(primary: Colors.blue),
+          ),
+          child: child!,
+        );
+      },
     );
-    
     if (date == null) return;
-    selectedDate = date;
     
-    // Time picker
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            primaryColor: Colors.blue,
+            colorScheme: const ColorScheme.light(primary: Colors.blue),
+          ),
+          child: child!,
+        );
+      },
     );
-    
     if (time == null) return;
-    selectedTime = time;
     
-    // Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -411,68 +743,27 @@ class _ChatScreenState extends State<ChatScreen> {
     );
     
     try {
-      final appointmentData = {
+      await FirebaseFirestore.instance.collection('Appointments').add({
         'patientId': widget.userId,
         'doctorId': doctor['id'],
         'doctorName': doctor['name'],
         'patientName': await _getUserName(widget.userId),
-        'appointmentDate': Timestamp.fromDate(selectedDate),
-        'appointmentTime': '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
+        'appointmentDate': Timestamp.fromDate(date),
+        'appointmentTime': '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
         'symptoms': symptoms,
         'status': 'pending',
         'createdAt': Timestamp.now(),
-        'notes': '',
-      };
-      
-      await FirebaseFirestore.instance.collection('Appointments').add(appointmentData);
-      
-      // Add to local list
-      setState(() {
-        _userAppointments.add({
-          'id': 'temp',
-          'doctorId': doctor['id'],
-          'doctorName': doctor['name'],
-          'appointmentDate': selectedDate,
-          'appointmentTime': '${selectedTime?.hour.toString().padLeft(2, '0')}:${selectedTime?.minute.toString().padLeft(2, '0')}',
-          'status': 'pending',
-          'symptoms': symptoms,
-        });
       });
       
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
+      await _loadUserAppointments();
       
-      // Show success message
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Icon(Icons.check_circle, color: Colors.green, size: 48),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Appointment Booked Successfully!'),
-              const SizedBox(height: 16),
-              Text('Dr. ${doctor['name']}'),
-              Text('Date: ${DateFormat('MMM dd, yyyy').format(selectedDate!)}'),
-              Text('Time: ${selectedTime?.format(context)}'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      
-      // Add confirmation to chat
-      _addBotMessage("✅ Your appointment with Dr. ${doctor['name']} has been booked for ${DateFormat('MMM dd, yyyy').format(selectedDate)} at ${selectedTime.format(context)}.\n\nYou can view all your appointments in the My Appointments section.");
+      _showSnackBar('✅ Appointment booked successfully!');
+      _addBotMessage("✅ **Appointment Confirmed!**\n\nYour appointment with **Dr. ${doctor['name']}** has been booked for **${DateFormat('MMM dd, yyyy').format(date)}** at **${time.format(context)}**.\n\nYou can view all your appointments in the 'My Appointments' section.");
       
     } catch (e) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error booking appointment: $e')),
-      );
+      _showSnackBar('Error booking appointment: $e');
     }
   }
   
@@ -485,7 +776,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ---------------- CANCEL APPOINTMENT ----------------
   Future<void> _cancelAppointment(String appointmentId) async {
     showDialog(
       context: context,
@@ -495,9 +785,9 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('No'),
+            child: const Text('No', style: TextStyle(color: Colors.grey)),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
               showDialog(
@@ -505,28 +795,16 @@ class _ChatScreenState extends State<ChatScreen> {
                 barrierDismissible: false,
                 builder: (context) => const Center(child: CircularProgressIndicator()),
               );
-              
-              try {
-                await FirebaseFirestore.instance.collection('Appointments').doc(appointmentId).update({
-                  'status': 'cancelled',
-                  'cancelledAt': Timestamp.now(),
-                });
-                
-                await _loadUserAppointments();
-                
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Appointment cancelled successfully')),
-                );
-                
-                _addBotMessage("Your appointment has been cancelled. Would you like to book another one?");
-              } catch (e) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error cancelling appointment: $e')),
-                );
-              }
+              await FirebaseFirestore.instance.collection('Appointments').doc(appointmentId).update({
+                'status': 'cancelled',
+                'cancelledAt': Timestamp.now(),
+              });
+              await _loadUserAppointments();
+              Navigator.pop(context);
+              _showSnackBar('Appointment cancelled successfully');
+              _addBotMessage("Your appointment has been cancelled.");
             },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Yes, Cancel'),
           ),
         ],
@@ -534,48 +812,11 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ---------------- SYMPTOM LOGIC ----------------
-  String getSymptomResponse(String text) {
-    text = text.toLowerCase();
-    String response = "❗ I couldn't identify exact symptoms.\nPlease describe more clearly.";
-
-    if (text.contains("high fever") || text.contains("very hot") || text.contains("103")) {
-      response = "⚠️ Possible: Severe Fever / Infection\n\nAdvice:\n- Take paracetamol\n- Drink fluids\n- Visit doctor if >3 days";
-    } else if (text.contains("fever") || text.contains("temperature")) {
-      response = "🤒 Possible: Viral Fever\n\nAdvice:\n- Rest\n- Hydration\n- Paracetamol if needed";
-    } else if (text.contains("headache") || text.contains("head pain")) {
-      response = "🤕 Possible: Stress / Migraine\n\nAdvice:\n- Rest in dark room\n- Drink water\n- Reduce screen time";
-    } else if (text.contains("cough") || text.contains("cold")) {
-      response = "🤧 Possible: Cold / Flu\n\nAdvice:\n- Warm fluids\n- Steam inhalation\n- Rest";
-    } else if (text.contains("body pain") || text.contains("muscle pain")) {
-      response = "💢 Possible: Viral infection / Fatigue\n\nAdvice:\n- Rest\n- Warm bath\n- Pain relief medicine";
-    } else if (text.contains("stomach") || text.contains("abdominal pain")) {
-      response = "🤢 Possible: Gas / Indigestion\n\nAdvice:\n- Light food\n- Avoid oily food\n- Drink warm water";
-    } else if (text.contains("breath") || text.contains("breathing issue")) {
-      response = "🚨 Possible: Respiratory issue\n\nAdvice:\n- Seek medical help immediately";
-    } else if (text.contains("my appointments") || text.contains("view appointments")) {
-      _showAppointmentsDialog();
-      return "📅 Here are your upcoming appointments:";
-    } else if (text.contains("translate") || text.contains("translation")) {
-      return "🌐 To translate a message, tap on any message and select 'Translate' from the menu.";
-    } else if (text.contains("voice") || text.contains("speak")) {
-      return "🎤 You can use voice input by tapping the microphone button next to the text field. Just speak clearly and I'll convert your speech to text!";
-    }
-
-    // Fetch doctors after response
-    if (!text.contains("appointment") && !text.contains("thank") && !text.contains("translate") && !text.contains("voice")) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _fetchAndSuggestDoctors(text);
-      });
-    }
-
-    return response;
-  }
-  
   void _showAppointmentsDialog() {
     showDialog(
       context: context,
       builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           width: MediaQuery.of(context).size.width * 0.9,
           height: MediaQuery.of(context).size.height * 0.7,
@@ -585,12 +826,16 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.calendar_today, size: 28),
-                  const SizedBox(width: 8),
-                  Text(
-                    'My Appointments',
-                    style: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.bold),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.calendar_today, size: 24, color: Colors.blue),
                   ),
+                  const SizedBox(width: 12),
+                  Text('My Appointments', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold)),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -598,8 +843,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ],
               ),
-              const Divider(),
-              const SizedBox(height: 16),
+              const Divider(height: 24),
               Expanded(
                 child: _loadingAppointments
                     ? const Center(child: CircularProgressIndicator())
@@ -608,17 +852,11 @@ class _ChatScreenState extends State<ChatScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.calendar_today, size: 64, color: Colors.grey),
+                                Icon(Icons.calendar_today, size: 64, color: Colors.grey.shade400),
                                 const SizedBox(height: 16),
-                                Text(
-                                  'No appointments found',
-                                  style: GoogleFonts.lato(fontSize: 16, color: Colors.grey),
-                                ),
+                                Text('No appointments found', style: GoogleFonts.poppins(color: Colors.grey)),
                                 const SizedBox(height: 8),
-                                Text(
-                                  'Book your first appointment by selecting a doctor',
-                                  style: GoogleFonts.lato(fontSize: 14, color: Colors.grey),
-                                ),
+                                Text('Book your first appointment!', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
                               ],
                             ),
                           )
@@ -626,44 +864,45 @@ class _ChatScreenState extends State<ChatScreen> {
                             itemCount: _userAppointments.length,
                             itemBuilder: (context, index) {
                               final appointment = _userAppointments[index];
-                              final statusColor = appointment['status'] == 'pending' 
-                                  ? Colors.orange 
-                                  : appointment['status'] == 'confirmed'
-                                  ? Colors.green
-                                  : Colors.red;
-                              
+                              final statusColor = appointment['status'] == 'pending' ? Colors.orange : 
+                                  appointment['status'] == 'confirmed' ? Colors.green : Colors.red;
+                              final appointmentDate = appointment['appointmentDate'] as Timestamp?;
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 12),
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 child: ListTile(
                                   leading: CircleAvatar(
                                     backgroundColor: statusColor.withOpacity(0.2),
-                                    child: Icon(
-                                      appointment['status'] == 'pending' 
-                                          ? Icons.pending
-                                          : appointment['status'] == 'confirmed'
-                                          ? Icons.check_circle
-                                          : Icons.cancel,
-                                      color: statusColor,
-                                    ),
+                                    child: Icon(Icons.medical_services, color: statusColor),
                                   ),
-                                  title: Text(
-                                    'Dr. ${appointment['doctorName']}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
+                                  title: Text('Dr. ${appointment['doctorName']}', style: const TextStyle(fontWeight: FontWeight.bold)),
                                   subtitle: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Date: ${DateFormat('MMM dd, yyyy').format(appointment['appointmentDate'].toDate())}'),
+                                      if (appointmentDate != null)
+                                        Text('Date: ${DateFormat('MMM dd, yyyy').format(appointmentDate.toDate())}'),
                                       Text('Time: ${appointment['appointmentTime']}'),
-                                      Text('Status: ${appointment['status'].toString().toUpperCase()}'),
-                                      if (appointment['symptoms'] != null)
-                                        Text('Symptoms: ${appointment['symptoms']}'),
+                                      const SizedBox(height: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: statusColor.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          appointment['status'].toString().toUpperCase(),
+                                          style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                   trailing: appointment['status'] == 'pending'
-                                      ? TextButton(
+                                      ? TextButton.icon(
                                           onPressed: () => _cancelAppointment(appointment['id']),
-                                          child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+                                          icon: const Icon(Icons.cancel, size: 16),
+                                          label: const Text('Cancel'),
+                                          style: TextButton.styleFrom(foregroundColor: Colors.red),
                                         )
                                       : null,
                                 ),
@@ -678,10 +917,25 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _addBotMessage(String text) {
+    setState(() {
+      _messages.add({
+        "role": "bot", 
+        "text": text,
+        "timestamp": DateTime.now(),
+        "originalText": text
+      });
+    });
+    _speak(text);
+    _saveChat();
+    _scrollToBottom();
+  }
+
   // ---------------- SEND MESSAGE ----------------
   void _sendMessage(String text) async {
     if (text.trim().isEmpty) return;
 
+    // Add user message
     setState(() {
       _messages.add({
         "role": "user", 
@@ -689,26 +943,53 @@ class _ChatScreenState extends State<ChatScreen> {
         "timestamp": DateTime.now(),
         "originalText": text
       });
+      _isThinking = true;
     });
+    _scrollToBottom();
 
     _controller.clear();
 
-    final response = getSymptomResponse(text);
+    // Check for doctor finder command
+    if (text.toLowerCase().contains('find doctor') || text.toLowerCase().contains('show doctors')) {
+      _showDoctorDialog();
+      setState(() {
+        _messages.add({
+          "role": "bot", 
+          "text": "👨‍⚕️ I've opened the doctor finder for you. Please select a doctor from the list to book an appointment.\n\nYou can also describe your symptoms and I'll recommend the right specialist!",
+          "timestamp": DateTime.now(),
+          "originalText": "👨‍⚕️ I've opened the doctor finder for you. Please select a doctor from the list to book an appointment.\n\nYou can also describe your symptoms and I'll recommend the right specialist!"
+        });
+        _isThinking = false;
+      });
+      _scrollToBottom();
+      return;
+    }
 
+    // Get AI response
+    final aiResponse = await _getAIResponse(text);
+
+    // Add bot response
     setState(() {
       _messages.add({
         "role": "bot", 
-        "text": response, 
+        "text": aiResponse, 
         "timestamp": DateTime.now(),
-        "originalText": response
+        "originalText": aiResponse
       });
+      _isThinking = false;
     });
+    _scrollToBottom();
 
-    _speak(response);
+    _speak(aiResponse);
     await _saveChat();
+
+    // Show doctor recommendations based on symptoms
+    if (text.length > 10 && !text.toLowerCase().contains('hello') && !text.toLowerCase().contains('hi')) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      _showDoctorRecommendations(text);
+    }
   }
 
-  // ---------------- QUESTIONNAIRE ----------------
   void _submitQuestionnaire() {
     String symptoms = questions
         .where((e) => e['selected'] == true)
@@ -720,7 +1001,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (symptoms.isEmpty) {
       _sendMessage("I have no symptoms to report");
     } else {
-      _sendMessage("Symptom Report: $symptoms");
+      _sendMessage(symptoms);
     }
   }
 
@@ -728,358 +1009,657 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue.shade50,
-      appBar: AppBar(
-        title: const Text("Symptom Checker"),
-        backgroundColor: Colors.blue.shade200,
-        actions: [
-          // Language selector
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.language),
-            onSelected: (value) {
-              setState(() => _selectedLanguage = value);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Language changed to ${_languages[value]}')),
-              );
-            },
-            itemBuilder: (context) => _languages.entries.map((lang) {
-              return PopupMenuItem(
-                value: lang.key,
-                child: Row(
-                  children: [
-                    Text(lang.value),
-                    if (_selectedLanguage == lang.key)
-                      const Icon(Icons.check, color: Colors.green),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: _showAppointmentsDialog,
-            tooltip: 'My Appointments',
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () async {
-              _messages.clear();
-              _suggestedDoctors.clear();
-              _selectedDoctor = null;
-              setState(() {});
-              final prefs = await SharedPreferences.getInstance();
-              prefs.remove("chat_history_${widget.userId}");
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chat history cleared')),
-              );
-            },
-          )
-        ],
-      ),
-      body: Column(
-        children: [
-          // Info banner for voice and translation
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            color: Colors.blue.shade100,
-            child: Row(
-              children: [
-                const Icon(Icons.info, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '🎤 Tap microphone to speak | 🌐 Long press message to translate',
-                    style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
-                  ),
-                ),
-              ],
+      backgroundColor: Colors.grey.shade50,
+      resizeToAvoidBottomInset: true,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(70),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1A237E), Color(0xFF0D47A1)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 10,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
-          
-          // Questionnaire
-          if (showQuestionnaire && widget.userType == 'patient')
-            Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.white,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
                 children: [
-                  Text(
-                    "🩺 Quick Health Check",
-                    style: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  ...questions.map((q) {
-                    return Row(
-                      children: [
-                        Expanded(child: Text(q["q"])),
-                        Checkbox(
-                          value: q["selected"],
-                          onChanged: (v) {
-                            setState(() => q["selected"] = v);
-                          },
-                        )
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.cyan, Colors.lightBlue],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.cyan.shade300,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
                       ],
-                    );
-                  }),
-                  ElevatedButton(
-                    onPressed: _submitQuestionnaire,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
                     ),
-                    child: const Text("Check Symptoms"),
-                  )
+                    child: const Icon(Icons.auto_awesome, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "AI Symptom Checker",
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Healthcare Assistant',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: PopupMenuButton<String>(
+                      icon: const Icon(Icons.language, color: Colors.white),
+                      onSelected: (value) => setState(() => _selectedLanguage = value),
+                      itemBuilder: (context) => _languages.entries.map((lang) {
+                        return PopupMenuItem(
+                          value: lang.key,
+                          child: Row(
+                            children: [
+                              Text(lang.value),
+                              if (_selectedLanguage == lang.key) 
+                                const Icon(Icons.check, color: Colors.green, size: 16),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.calendar_today, color: Colors.white),
+                      onPressed: _showAppointmentsDialog,
+                      tooltip: 'My Appointments',
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.white),
+                      onPressed: () async {
+                        _messages.clear();
+                        _suggestedDoctors.clear();
+                        _selectedDoctor = null;
+                        setState(() {});
+                        final prefs = await SharedPreferences.getInstance();
+                        prefs.remove("chat_history_${widget.userId}");
+                        _addWelcomeMessage();
+                        _showSnackBar('Chat history cleared');
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),
-
-          // Chat
-          Expanded(
-            child: ListView.builder(
-              itemCount: _messages.length,
-              itemBuilder: (context, i) {
-                final msg = _messages[i];
-                final isUser = msg["role"] == "user";
-                final hasTranslation = msg['translatedText'] != null;
-                
-                return GestureDetector(
-                  onLongPress: () => _showTranslationDialog(msg, i),
-                  child: Align(
-                    alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.all(8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isUser ? Colors.blue.shade100 : Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (showQuestionnaire && widget.userType == 'patient')
+              Container(
+                margin: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.shade200,
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.health_and_safety, color: Colors.blue.shade600),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Quick Health Check",
+                          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ...questions.map((q) => Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      elevation: 0,
+                      color: Colors.grey.shade50,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: CheckboxListTile(
+                        value: q["selected"],
+                        onChanged: (v) => setState(() => q["selected"] = v),
+                        title: Text(q["q"]),
+                        secondary: Icon(q["icon"], color: Colors.blue.shade400),
+                        activeColor: Colors.blue,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          MarkdownBody(data: hasTranslation ? msg['translatedText'] : msg["text"] ?? ""),
-                          if (hasTranslation)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Original:',
-                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
-                                    ),
-                                    Text(
-                                      msg['text'],
-                                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                                    ),
-                                  ],
+                    )),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _submitQuestionnaire,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 45),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text("Check Symptoms"),
+                    )
+                  ],
+                ),
+              ),
+
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: _messages.length + (_isThinking ? 1 : 0),
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 80,
+                  top: 8,
+                ),
+                itemBuilder: (context, i) {
+                  if (i == _messages.length && _isThinking) {
+                    return const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 30,
+                              height: 30,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 12),
+                            Text('AI is analyzing your symptoms...'),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                  
+                  final msg = _messages[i];
+                  final isUser = msg["role"] == "user";
+                  final hasTranslation = msg['translatedText'] != null;
+                  final timestamp = msg["timestamp"] as DateTime?;
+                  
+                  return GestureDetector(
+                    onLongPress: () => _showTranslationDialog(msg, i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Align(
+                        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.8,
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: isUser
+                                ? LinearGradient(
+                                    colors: [Colors.blue.shade400, Colors.blue.shade600],
+                                  )
+                                : LinearGradient(
+                                    colors: [Colors.grey.shade100, Colors.grey.shade50],
+                                  ),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.1),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              MarkdownBody(
+                                data: hasTranslation ? msg['translatedText'] : msg["text"] ?? "",
+                                styleSheet: MarkdownStyleSheet(
+                                  p: TextStyle(
+                                    color: isUser ? Colors.white : Colors.black87,
+                                    fontSize: 14,
+                                  ),
+                                  strong: TextStyle(
+                                    color: isUser ? Colors.white : Colors.blue.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
+                              if (hasTranslation)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: isUser ? Colors.white24 : Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Original:',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: isUser ? Colors.white70 : Colors.grey.shade600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          msg['text'],
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontStyle: FontStyle.italic,
+                                            color: isUser ? Colors.white70 : Colors.grey.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              if (timestamp != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    DateFormat('HH:mm').format(timestamp),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: isUser ? Colors.white70 : Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Doctor Recommendations Section
+            if (_suggestedDoctors.isNotEmpty || _loadingDoctors)
+              Container(
+                height: 380,
+                margin: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.shade200,
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.green.shade400, Colors.teal.shade400],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          if (msg["timestamp"] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                DateFormat('HH:mm').format(msg["timestamp"]),
-                                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                            child: const Icon(Icons.medical_services, color: Colors.white, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "👨‍⚕️ Recommended Doctors",
+                                  style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  "Based on your symptoms",
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_selectedDoctor != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.check_circle, color: Colors.white, size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "Selected",
+                                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
                               ),
                             ),
                         ],
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Doctor Suggestions Section
-          if (_suggestedDoctors.isNotEmpty || _loadingDoctors)
-            Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.45,
-              ),
-              padding: const EdgeInsets.all(12),
-              color: Colors.green.shade50,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.medical_services, color: Colors.green.shade700),
-                      const SizedBox(width: 8),
-                      Text(
-                        "👨‍⚕️ Suggested Doctors",
-                        style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.bold),
+                    const Divider(height: 0),
+                    if (_loadingDoctors)
+                      const Expanded(child: Center(child: CircularProgressIndicator())),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: _suggestedDoctors.length,
+                        itemBuilder: (context, index) {
+                          final doctor = _suggestedDoctors[index];
+                          final isSelected = _selectedDoctor != null && _selectedDoctor!['id'] == doctor['id'];
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: Card(
+                              elevation: isSelected ? 4 : 1,
+                              color: isSelected ? Colors.green.shade50 : Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: isSelected ? BorderSide(color: Colors.green.shade400, width: 2) : BorderSide.none,
+                              ),
+                              child: InkWell(
+                                onTap: () => setState(() => _selectedDoctor = doctor),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: isSelected 
+                                                ? [Colors.green.shade400, Colors.teal.shade400]
+                                                : [Colors.blue.shade400, Colors.indigo.shade400],
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: CircleAvatar(
+                                          backgroundColor: Colors.transparent,
+                                          radius: 25,
+                                          child: Text(
+                                            doctor['name'][0],
+                                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    "Dr. ${doctor['name']}",
+                                                    style: TextStyle(
+                                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Row(
+                                                  children: [
+                                                    Icon(Icons.star, size: 14, color: Colors.amber.shade700),
+                                                    const SizedBox(width: 2),
+                                                    Text(" ${doctor['rating']}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: isSelected ? Colors.green.shade100 : Colors.blue.shade50,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                (doctor['specification'] != null && doctor['specification'].isNotEmpty)
+                                                    ? doctor['specification'].toString().toUpperCase()
+                                                    : doctor['specialization'].toString().toUpperCase(),
+                                                style: TextStyle(
+                                                  color: isSelected ? Colors.green.shade700 : Colors.blue.shade700,
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.access_time, size: 12, color: Colors.grey.shade600),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  "${doctor['openHour']} - ${doctor['closeHour']}",
+                                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                                ),
+                                              ],
+                                            ),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.location_on, size: 12, color: Colors.grey.shade600),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    doctor['address'],
+                                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (isSelected)
+                                        const Icon(Icons.check_circle, color: Colors.green, size: 30)
+                                      else
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [Colors.blue, Colors.indigo],
+                                            ),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: ElevatedButton(
+                                            onPressed: () => setState(() => _selectedDoctor = doctor),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.transparent,
+                                              foregroundColor: Colors.white,
+                                              shadowColor: Colors.transparent,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                            ),
+                                            child: const Text("Select", style: TextStyle(fontSize: 12)),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                      const Spacer(),
-                      if (_selectedDoctor != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(12),
+                    ),
+                    if (_selectedDoctor != null)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            final symptoms = _messages.lastWhere(
+                              (msg) => msg["role"] == "user",
+                              orElse: () => {"text": "General consultation"},
+                            )["text"];
+                            _bookAppointment(context, _selectedDoctor!, symptoms);
+                            setState(() {
+                              _suggestedDoctors = [];
+                              _selectedDoctor = null;
+                            });
+                          },
+                          icon: const Icon(Icons.calendar_today),
+                          label: const Text("Book Appointment"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 45),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Text(
-                            "Selected: Dr. ${_selectedDoctor!['name']}",
-                            style: const TextStyle(color: Colors.white, fontSize: 11),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+            // Input Container - Fixed to bottom
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.shade200,
+                    blurRadius: 10,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        decoration: InputDecoration(
+                          hintText: "Describe your symptoms or type 'find doctor'...",
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          suffixIcon: _controller.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, color: Colors.grey),
+                                  onPressed: () => _controller.clear(),
+                                )
+                              : null,
+                        ),
+                        onSubmitted: (text) => _sendMessage(text),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _isListening 
+                                ? [Colors.red.shade400, Colors.red.shade600]
+                                : [Colors.blue.shade400, Colors.blue.shade600],
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: Colors.white),
+                          onPressed: _startListening,
+                          iconSize: 24,
+                        ),
+                      ),
+                      if (_isListening)
+                        const SizedBox(
+                          width: 55,
+                          height: 55,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  if (_loadingDoctors)
-                    const Center(child: CircularProgressIndicator()),
-                  Expanded(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _suggestedDoctors.length,
-                      itemBuilder: (context, index) {
-                        final doctor = _suggestedDoctors[index];
-                        final isSelected = _selectedDoctor != null && _selectedDoctor!['id'] == doctor['id'];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          color: isSelected ? Colors.green.shade100 : Colors.white,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: isSelected ? Colors.green : Colors.blue,
-                              child: Text(
-                                doctor['name'][0],
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            ),
-                            title: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    "Dr. ${doctor['name']}",
-                                    style: TextStyle(
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    ),
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    Icon(Icons.star, size: 16, color: Colors.amber),
-                                    Text(" ${doctor['rating']}"),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  doctor['specialization'].toString().toUpperCase(),
-                                  style: TextStyle(
-                                    color: Colors.grey.shade700,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "🕐 ${doctor['openHour']} - ${doctor['closeHour']}",
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                                Text(
-                                  "📍 ${doctor['address']}",
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                              ],
-                            ),
-                            trailing: isSelected
-                                ? const Icon(Icons.check_circle, color: Colors.green)
-                                : ElevatedButton(
-                                    onPressed: () => setState(() => _selectedDoctor = doctor),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      textStyle: const TextStyle(fontSize: 12),
-                                    ),
-                                    child: const Text("Select"),
-                                  ),
-                          ),
-                        );
-                      },
+                  const SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green.shade400, Colors.green.shade600],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      onPressed: () => _sendMessage(_controller.text),
+                      iconSize: 24,
                     ),
                   ),
-                  if (_selectedDoctor != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          final symptoms = _messages.lastWhere(
-                            (msg) => msg["role"] == "user",
-                            orElse: () => {"text": "General consultation"},
-                          )["text"];
-                          _bookAppointment(context, _selectedDoctor!, symptoms);
-                        },
-                        icon: const Icon(Icons.calendar_today),
-                        label: const Text("Book Appointment"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 40),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
-
-          // Input with voice button
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: InputDecoration(
-                      hintText: widget.userType == 'patient' 
-                          ? "Type or tap microphone to speak..."
-                          : "Type your message...",
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Voice input button
-                Container(
-                  decoration: BoxDecoration(
-                    color: _isListening ? Colors.red : Colors.blue,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: Colors.white),
-                    onPressed: _isListening ? _stopListening : _startListening,
-                    tooltip: _isListening ? 'Stop listening' : 'Start voice input',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Send button
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
-                  onPressed: () => _sendMessage(_controller.text),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    padding: const EdgeInsets.all(12),
-                  ),
-                )
-              ],
-            ),
-          )
-        ],
+          ],
+        ),
       ),
     );
   }

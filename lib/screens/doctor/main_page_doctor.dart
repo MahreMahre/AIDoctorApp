@@ -15,7 +15,9 @@ class MainPageDoctor extends StatefulWidget {
 
 class _MainPageDoctorState extends State<MainPageDoctor> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  int _selectedIndex = 2;
+  int _selectedIndex = 0;
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
 
   final List<Widget> _pages = [
     const Chats(),
@@ -23,28 +25,89 @@ class _MainPageDoctorState extends State<MainPageDoctor> {
     const MyProfile(),
   ];
 
+  final List<String> _titles = [
+    'Messages',
+    'Appointments',
+    'My Profile',
+  ];
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+      _isSearching = false;
+      _searchController.clear();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      // ✨ Premium Scaffold Background
-      backgroundColor: const Color(0xFFF0F4FA), // Soft elegant blue tint
+      backgroundColor: const Color(0xFFF5F7FB),
+      
+      appBar: _buildAppBar(),
+      
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white,
+              const Color(0xFFF5F7FB),
+            ],
+          ),
+        ),
+        child: _pages[_selectedIndex],
+      ),
+      
+      bottomNavigationBar: _buildBottomNavBar(),
+    );
+  }
 
-      appBar: AppBar(
+  PreferredSizeWidget _buildAppBar() {
+    if (_isSearching) {
+      return AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Text(
-          "Doctor Dashboard",
-          style: GoogleFonts.poppins(
-            fontSize: 24,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF1E40AF),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E40AF)),
+          onPressed: () {
+            setState(() {
+              _isSearching = false;
+              _searchController.clear();
+            });
+          },
+        ),
+        title: Container(
+          height: 45,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F7FB),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: TextField(
+            controller: _searchController,
+            autofocus: true,
+            style: GoogleFonts.poppins(fontSize: 15),
+            decoration: InputDecoration(
+              hintText: "Search...",
+              hintStyle: GoogleFonts.poppins(
+                color: Colors.grey.shade400,
+                fontSize: 14,
+              ),
+              prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF1E40AF)),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onChanged: (value) {
+              // Handle search
+            },
           ),
         ),
         actions: [
@@ -52,60 +115,201 @@ class _MainPageDoctorState extends State<MainPageDoctor> {
             padding: const EdgeInsets.only(right: 16),
             child: CircleAvatar(
               radius: 20,
-              backgroundColor: Colors.blue.shade50,
-              child: const Icon(Icons.notifications_outlined, color: Color(0xFF1E40AF)),
+              backgroundColor: const Color(0xFF1E40AF).withOpacity(0.1),
+              child: const Icon(Icons.search, size: 20, color: Color(0xFF1E40AF)),
             ),
           ),
         ],
-      ),
-
-      body: _pages[_selectedIndex],
-
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(32),
-            topRight: Radius.circular(32),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.07),
-              blurRadius: 25,
-              offset: const Offset(0, -8),
+      );
+    }
+    
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _titles[_selectedIndex],
+            style: GoogleFonts.poppins(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF1E40AF),
             ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: GNav(
-              curve: Curves.easeOutExpo,
-              rippleColor: Colors.blue.shade100,
-              hoverColor: Colors.blue.shade50,
-              haptic: true,
-              tabBorderRadius: 25,
-              gap: 8,
-              activeColor: Colors.white,
-              iconSize: 26,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              duration: const Duration(milliseconds: 300),
-              tabBackgroundColor: const Color(0xFF1E40AF),
-          
-              textStyle: GoogleFonts.poppins(
-
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+          ),
+          if (_selectedIndex == 0)
+            Text(
+              "Your conversations",
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey.shade500,
               ),
-              tabs: const [
-                GButton(icon: Icons.chat_bubble_outline_rounded, text: 'Chats'),
-                GButton(icon: Typicons.calendar, text: 'Appointments'),
-                GButton(icon: Typicons.user, text: 'Profile'),
-              ],
-              selectedIndex: _selectedIndex,
-              onTabChange: _onItemTapped,
+            ),
+          if (_selectedIndex == 1)
+            Text(
+              "Manage your appointments",
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          if (_selectedIndex == 2)
+            Text(
+              "View and edit profile",
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        // Search Button
+        if (_selectedIndex != 2)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E40AF).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.search, size: 20, color: Color(0xFF1E40AF)),
+              ),
+              onPressed: () {
+                setState(() {
+                  _isSearching = true;
+                });
+              },
             ),
           ),
+        
+        // Notification Button
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E40AF).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.notifications_none, size: 20, color: Color(0xFF1E40AF)),
+              ),
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(30),
+          topRight: Radius.circular(30),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(
+                icon: Icons.chat_bubble_outline,
+                label: 'Chats',
+                index: 0,
+              ),
+              _buildNavItem(
+                icon: Typicons.calendar,
+                label: 'Appointments',
+                index: 1,
+              ),
+              _buildNavItem(
+                icon: Typicons.user,
+                label: 'Profile',
+                index: 2,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required String label,
+    required int index,
+  }) {
+    final isSelected = _selectedIndex == index;
+    
+    return GestureDetector(
+      onTap: () => _onItemTapped(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 20 : 16,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF1E40AF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF1E40AF).withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.grey.shade500,
+              size: 22,
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

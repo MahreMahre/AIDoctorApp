@@ -41,26 +41,53 @@ class _RegisterState extends State<Register> {
     _emailController.dispose();
     _passwordController.dispose();
     _passwordConfirmController.dispose();
-
+    f1.dispose();
+    f2.dispose();
+    f3.dispose();
+    f4.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Container(
+          margin: const EdgeInsets.only(left: 10),
+          decoration: BoxDecoration(
+            color: Colors.indigo.shade50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios, size: 20),
+            color: const Color(0xFF1A237E),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        title: Text(
+          'Create Account',
+          style: GoogleFonts.poppins(
+            color: const Color(0xFF1A237E),
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: SafeArea(
-        child: Center(
-          child: NotificationListener<OverscrollIndicatorNotification>(
-            onNotification: (OverscrollIndicatorNotification overscroll) {
-              overscroll.disallowIndicator();
-              return true;
-            },
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 40, 10, 10),
-                child: _signUp(),
-              ),
+        child: NotificationListener<OverscrollIndicatorNotification>(
+          onNotification: (OverscrollIndicatorNotification overscroll) {
+            overscroll.disallowIndicator();
+            return true;
+          },
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+              child: _signUp(),
             ),
           ),
         ),
@@ -71,307 +98,465 @@ class _RegisterState extends State<Register> {
   Widget _signUp() {
     return Form(
       key: _formKey,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              'Sign up',
-              style: GoogleFonts.lato(
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Header Icon
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1A237E), Color(0xFF0D47A1)],
               ),
-            ),
-
-            const SizedBox(height: 50),
-
-            // NAME FIELD
-            TextFormField(
-              focusNode: f1,
-              controller: _displayName,
-              textInputAction: TextInputAction.next,
-              style: GoogleFonts.lato(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-              decoration: _inputDecoration('Name'),
-              onFieldSubmitted: (_) {
-                f1.unfocus();
-                FocusScope.of(context).requestFocus(f2);
-              },
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter the Name';
-                } else if (!RegExp(
-                  r'^[A-Z][a-z]*(\s[A-Z][a-z]*)*$',
-                ).hasMatch(value.trim())) {
-                  return 'Name must start with capital letter';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: 25),
-
-            // EMAIL FIELD
-            TextFormField(
-              focusNode: f2,
-              controller: _emailController,
-              textInputAction: TextInputAction.next,
-              keyboardType: TextInputType.emailAddress,
-              style: GoogleFonts.lato(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-              decoration: _inputDecoration('Email'),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter the Email';
-                } else if (!emailValidate(value)) {
-                  return 'Please enter correct Email';
-                }
-                return null;
-              },
-              onFieldSubmitted: (_) {
-                f2.unfocus();
-                FocusScope.of(context).requestFocus(f3);
-              },
-            ),
-
-            const SizedBox(height: 25),
-
-            // PASSWORD FIELD
-            TextFormField(
-              focusNode: f3,
-              controller: _passwordController,
-              obscureText: !_passwordVisible,
-              textInputAction: TextInputAction.next,
-              style: GoogleFonts.lato(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-              decoration: _inputDecoration('Password').copyWith(
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _passwordVisible
-                        ? Icons.visibility
-                        : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _passwordVisible = !_passwordVisible;
-                    });
-                  },
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter the Password';
-                } else if (value.length < 8) {
-                  return 'Password must be at least 8 characters';
-                }
-                return null;
-              },
-              onFieldSubmitted: (_) {
-                f3.unfocus();
-                FocusScope.of(context).requestFocus(f4);
-              },
-            ),
-
-            const SizedBox(height: 25),
-
-            // CONFIRM PASSWORD
-            TextFormField(
-              focusNode: f4,
-              controller: _passwordConfirmController,
-              obscureText: !_confirmPasswordVisible,
-              textInputAction: TextInputAction.done,
-              style: GoogleFonts.lato(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-              decoration: _inputDecoration(
-                'Confirm Password',
-              ).copyWith(
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _confirmPasswordVisible
-                        ? Icons.visibility
-                        : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _confirmPasswordVisible =
-                      !_confirmPasswordVisible;
-                    });
-                  },
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please confirm password';
-                } else if (value != _passwordController.text) {
-                  return 'Passwords do not match';
-                }
-                return null;
-              },
-              onFieldSubmitted: (_) => f4.unfocus(),
-            ),
-
-            const SizedBox(height: 25),
-
-            // ACCOUNT TYPE
-            Row(
-              children: [
-
-                // DOCTOR
-                Expanded(
-                  child: _accountTypeButton('Doctor', 0),
-                ),
-
-                const SizedBox(width: 8),
-
-                // PATIENT
-                Expanded(
-                  child: _accountTypeButton('Patient', 1),
-                ),
-
-                const SizedBox(width: 8),
-
-                // NURSE
-                Expanded(
-                  child: _accountTypeButton('Nurse', 2),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.indigo.shade200,
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
+            child: const Icon(
+              Icons.person_add,
+              size: 40,
+              color: Colors.white,
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Text(
+            'Sign Up',
+            style: GoogleFonts.poppins(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1A237E),
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          
+          Text(
+            'Create your account to get started',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          
+          const SizedBox(height: 40),
 
-            const SizedBox(height: 25),
-
-            // SIGN UP BUTTON
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () async {
-                  if (_formKey.currentState!.validate() &&
-                      type != -1) {
-                    showLoaderDialog(context);
-                    _registerAccount();
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo[900],
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(32.0),
-                  ),
-                ),
-                child: Text(
-                  "Sign Up",
-                  style: GoogleFonts.lato(
-                    color: Colors.white,
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
+          // NAME FIELD
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Full Name",
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1A237E),
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+              TextFormField(
+                focusNode: f1,
+                controller: _displayName,
+                textInputAction: TextInputAction.next,
+                style: GoogleFonts.poppins(fontSize: 15),
+                decoration: _inputDecoration('Enter your full name', Icons.person_outline),
+                onFieldSubmitted: (_) {
+                  f1.unfocus();
+                  FocusScope.of(context).requestFocus(f2);
+                },
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter your name';
+                  } else if (!RegExp(
+                    r'^[A-Z][a-z]*(\s[A-Z][a-z]*)*$',
+                  ).hasMatch(value.trim())) {
+                    return 'Name must start with capital letter';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
 
-            const SizedBox(height: 25),
+          const SizedBox(height: 20),
 
-            const Divider(thickness: 1.5),
+          // EMAIL FIELD
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Email Address",
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1A237E),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                focusNode: f2,
+                controller: _emailController,
+                textInputAction: TextInputAction.next,
+                keyboardType: TextInputType.emailAddress,
+                style: GoogleFonts.poppins(fontSize: 15),
+                decoration: _inputDecoration('Enter your email', Icons.email_outlined),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your email';
+                  } else if (!emailValidate(value)) {
+                    return 'Please enter a valid email';
+                  }
+                  return null;
+                },
+                onFieldSubmitted: (_) {
+                  f2.unfocus();
+                  FocusScope.of(context).requestFocus(f3);
+                },
+              ),
+            ],
+          ),
 
-            const SizedBox(height: 5),
+          const SizedBox(height: 20),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  "Already have an account?",
-                  style: GoogleFonts.lato(
-                    fontSize: 15.0,
-                    fontWeight: FontWeight.w700,
+          // PASSWORD FIELD
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Password",
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1A237E),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                focusNode: f3,
+                controller: _passwordController,
+                obscureText: !_passwordVisible,
+                textInputAction: TextInputAction.next,
+                style: GoogleFonts.poppins(fontSize: 15),
+                decoration: _inputDecoration('Create a password', Icons.lock_outline).copyWith(
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.grey.shade500,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _passwordVisible = !_passwordVisible;
+                      });
+                    },
                   ),
                 ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your password';
+                  } else if (value.length < 8) {
+                    return 'Password must be at least 8 characters';
+                  }
+                  return null;
+                },
+                onFieldSubmitted: (_) {
+                  f3.unfocus();
+                  FocusScope.of(context).requestFocus(f4);
+                },
+              ),
+            ],
+          ),
 
-                TextButton(
-                  onPressed: () =>
-                      _pushPage(context, const SignIn()),
-                  child: Text(
-                    'Sign in',
-                    style: GoogleFonts.lato(
-                      fontSize: 15,
-                      color: Colors.indigo[700],
+          const SizedBox(height: 20),
+
+          // CONFIRM PASSWORD
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Confirm Password",
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1A237E),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                focusNode: f4,
+                controller: _passwordConfirmController,
+                obscureText: !_confirmPasswordVisible,
+                textInputAction: TextInputAction.done,
+                style: GoogleFonts.poppins(fontSize: 15),
+                decoration: _inputDecoration('Confirm your password', Icons.lock_outline).copyWith(
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _confirmPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.grey.shade500,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _confirmPasswordVisible = !_confirmPasswordVisible;
+                      });
+                    },
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please confirm your password';
+                  } else if (value != _passwordController.text) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
+                onFieldSubmitted: (_) => f4.unfocus(),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 25),
+
+          // ACCOUNT TYPE
+          Text(
+            "Select Account Type",
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF1A237E),
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          Row(
+            children: [
+              // DOCTOR
+              Expanded(
+                child: _accountTypeButton('Doctor', 0, Icons.medical_services),
+              ),
+              const SizedBox(width: 12),
+              // PATIENT
+              Expanded(
+                child: _accountTypeButton('Patient', 1, Icons.person),
+              ),
+              const SizedBox(width: 12),
+              // NURSE
+              Expanded(
+                child: _accountTypeButton('Nurse', 2, Icons.health_and_safety),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 35),
+
+          // SIGN UP BUTTON
+          SizedBox(
+            width: double.infinity,
+            height: 55,
+            child: ElevatedButton(
+              onPressed: () async {
+                if (_formKey.currentState!.validate() && type != -1) {
+                  showLoaderDialog(context);
+                  _registerAccount();
+                } else if (type == -1) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Please select account type"),
+                      backgroundColor: Colors.orange,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1A237E),
+                elevation: 3,
+                shadowColor: const Color(0xFF1A237E).withOpacity(0.3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.person_add, size: 22, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(
+                    "Sign Up",
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 25),
+
+          // DIVIDER
+          Row(
+            children: [
+              Expanded(
+                child: Divider(
+                  color: Colors.grey.shade300,
+                  thickness: 1,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'OR',
+                  style: GoogleFonts.poppins(
+                    color: Colors.grey.shade400,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Divider(
+                  color: Colors.grey.shade300,
+                  thickness: 1,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // SIGN IN LINK
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                "Already have an account?",
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              TextButton(
+                onPressed: () => _pushPage(context, const SignIn()),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 30),
+                ),
+                child: Text(
+                  'Sign In',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1A237E),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  InputDecoration _inputDecoration(String hintText) {
+  InputDecoration _inputDecoration(String hintText, IconData icon) {
     return InputDecoration(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 10,
-      ),
-      border: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(
-          Radius.circular(90.0),
+      prefixIcon: Container(
+        margin: const EdgeInsets.all(12),
+        child: Icon(
+          icon,
+          size: 20,
+          color: Colors.indigo.shade400,
         ),
-        borderSide: BorderSide.none,
+      ),
+      hintText: hintText,
+      hintStyle: GoogleFonts.poppins(
+        color: Colors.grey.shade400,
+        fontSize: 14,
       ),
       filled: true,
-      fillColor: Colors.grey[350],
-      hintText: hintText,
-      hintStyle: GoogleFonts.lato(
-        color: Colors.black26,
-        fontSize: 18,
-        fontWeight: FontWeight.w800,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide.none,
       ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(color: Color(0xFF1A237E), width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide(color: Colors.red.shade300, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 16),
     );
   }
 
-  Widget _accountTypeButton(
-      String label,
-      int selectedType,
-      ) {
-    return SizedBox(
-      height: 50,
-      child: ElevatedButton(
-        onPressed: () {
-          setState(() {
-            type = selectedType;
-          });
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.grey[350],
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32.0),
+  Widget _accountTypeButton(String label, int selectedType, IconData icon) {
+    bool isSelected = type == selectedType;
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          type = selectedType;
+        });
+      },
+      child: Container(
+        height: 70,
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF1A237E), Color(0xFF0D47A1)],
+                )
+              : null,
+          color: isSelected ? null : Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : Colors.grey.shade300,
+            width: 1.5,
           ),
-          side: BorderSide(
-            width: 5.0,
-            color: Colors.black26,
-            style: type == selectedType
-                ? BorderStyle.solid
-                : BorderStyle.none,
-          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF1A237E).withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.lato(
-            color: type == selectedType
-                ? Colors.deepPurple[400]
-                : Colors.white,
-            fontSize: 14.0,
-            fontWeight: FontWeight.bold,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.grey.shade600,
+              size: 24,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                color: isSelected ? Colors.white : Colors.grey.shade700,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -384,25 +569,64 @@ class _RegisterState extends State<Register> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(
-            "Error!",
-            style: GoogleFonts.lato(
-              fontWeight: FontWeight.bold,
-            ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          content: const Text("Email already Exists"),
-          actions: [
-            TextButton(
-              child: Text(
-                "OK",
-                style: GoogleFonts.lato(
-                  fontWeight: FontWeight.bold,
+          title: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.error_outline,
+                  color: Colors.red.shade700,
+                  size: 40,
                 ),
               ),
-              onPressed: () {
-                Navigator.pop(context);
-                FocusScope.of(context).requestFocus(f2);
-              },
+              const SizedBox(height: 16),
+              Text(
+                "Email Already Exists",
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: const Color(0xFF1A237E),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            "An account with this email already exists. Please use a different email or try signing in.",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A237E),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  FocusScope.of(context).requestFocus(f2);
+                },
+                child: Text(
+                  "OK",
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ),
           ],
         );
@@ -411,20 +635,31 @@ class _RegisterState extends State<Register> {
   }
 
   void showLoaderDialog(BuildContext context) {
-    AlertDialog alert = AlertDialog(
-      content: Row(
-        children: const [
-          CircularProgressIndicator(),
-          SizedBox(width: 15),
-          Text("Loading..."),
-        ],
-      ),
-    );
-
     showDialog(
       barrierDismissible: false,
       context: context,
-      builder: (BuildContext context) => alert,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          content: Row(
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1A237E)),
+              ),
+              const SizedBox(width: 15),
+              Text(
+                "Creating account...",
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: const Color(0xFF1A237E),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -444,17 +679,17 @@ class _RegisterState extends State<Register> {
         password: _passwordController.text,
       );
     } catch (error) {
+      Navigator.pop(context);
       if (error.toString().contains('email-already-in-use')) {
         showAlertDialog(context);
       }
-
       print(error.toString());
+      return;
     }
 
     user = credential?.user;
 
     if (user != null) {
-
       if (!user.emailVerified) {
         await user.sendEmailVerification();
       }
@@ -481,7 +716,7 @@ class _RegisterState extends State<Register> {
         accountType = 'patient';
       }
 
-      FirebaseFirestore.instance
+      await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .set({
@@ -505,11 +740,10 @@ class _RegisterState extends State<Register> {
       // DOCTOR DATA
       if (type == 0) {
         mp.addAll({
-          'openHour': "09:00",
-          'closeHour': "21:00",
+          'openHour': "09:00 AM",
+          'closeHour': "09:00 PM",
           'rating': double.parse(
-            (3 + Random().nextDouble() * 1.9)
-                .toStringAsPrecision(2),
+            (3 + Random().nextDouble() * 1.9).toStringAsPrecision(2),
           ),
           'specification': null,
           'specialization': 'general',
@@ -521,11 +755,10 @@ class _RegisterState extends State<Register> {
       // NURSE DATA
       if (type == 2) {
         mp.addAll({
-          'openHour': "09:00",
-          'closeHour': "21:00",
+          'openHour': "09:00 AM",
+          'closeHour': "09:00 PM",
           'rating': double.parse(
-            (3 + Random().nextDouble() * 1.9)
-                .toStringAsPrecision(2),
+            (3 + Random().nextDouble() * 1.9).toStringAsPrecision(2),
           ),
           'department': 'general nursing',
           'experience': null,
@@ -533,14 +766,24 @@ class _RegisterState extends State<Register> {
         });
       }
 
-      FirebaseFirestore.instance
+      await FirebaseFirestore.instance
           .collection(accountType)
           .doc(user.uid)
           .set(mp);
 
+      Navigator.pop(context); // Close loader
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Account created successfully! Please verify your email."),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      
       Navigator.of(context).pushNamedAndRemoveUntil(
         '/NursingHome',
-            (Route<dynamic> route) => false,
+        (Route<dynamic> route) => false,
       );
     }
   }

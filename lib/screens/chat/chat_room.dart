@@ -1,8 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/ui/firebase_animated_list.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'message.dart';
 import 'message_dao.dart';
 
@@ -25,16 +31,46 @@ class ChatRoom extends StatefulWidget {
 class _ChatRoomState extends State<ChatRoom> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   User? user;
   MessageDao? messageDao;
   bool isLoading = true;
+  bool _isSending = false;
+  bool _isUploading = false;
 
   @override
   void initState() {
     super.initState();
     _initializeChat();
+    
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        _scrollToBottom();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _initializeChat() async {
@@ -45,54 +81,247 @@ class _ChatRoomState extends State<ChatRoom> {
     setState(() {
       isLoading = false;
     });
+    _scrollToBottom();
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || messageDao == null || user == null) return;
+    if (text.isEmpty || messageDao == null || user == null || _isSending) return;
+
+    setState(() {
+      _isSending = true;
+    });
 
     final message = Message(
       message: text,
       senderId: user!.uid,
       time: DateTime.now().toUtc().toIso8601String(),
+      type: 'text',
     );
 
     messageDao!.saveMessage(message);
-    _messageController.clear();
+    
+    setState(() {
+      _messageController.clear();
+      _isSending = false;
+    });
+    
+    _scrollToBottom();
+  }
+
+  Future<void> _sendPrescription() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    
+    if (pickedFile == null) return;
+    
+    setState(() {
+      _isUploading = true;
+    });
+    
+    try {
+      File file = File(pickedFile.path);
+      String fileName = 'prescription_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      String filePath = 'chat_prescriptions/${widget.user2Id}/$fileName';
+      
+      // Upload to Firebase Storage
+      Reference ref = _storage.ref().child(filePath);
+      UploadTask uploadTask = ref.putFile(file);
+      TaskSnapshot snapshot = await uploadTask;
+      String downloadUrl = await snapshot.ref.getDownloadURL();
+      
+      // Get current user info
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .get();
+      
+      String doctorName = userDoc.exists ? (userDoc.data() as Map<String, dynamic>)['name'] ?? 'Doctor' : 'Doctor';
+      
+      // Save prescription to Firestore
+      Map<String, dynamic> prescriptionData = {
+        'prescriptionId': DateTime.now().millisecondsSinceEpoch.toString(),
+        'senderId': user!.uid,
+        'receiverId': widget.user2Id,
+        'doctorName': doctorName,
+        'prescriptionUrl': downloadUrl,
+        'uploadedAt': Timestamp.now(),
+        'status': 'active'
+      };
+      
+      await FirebaseFirestore.instance
+          .collection('prescriptions')
+          .doc(widget.user2Id)
+          .collection('chat_prescriptions')
+          .doc(prescriptionData['prescriptionId'])
+          .set(prescriptionData);
+      
+      // Send prescription as a message in chat
+      final message = Message(
+        message: '📋 Prescription uploaded',
+        senderId: user!.uid,
+        time: DateTime.now().toUtc().toIso8601String(),
+        type: 'prescription',
+        prescriptionId: prescriptionData['prescriptionId'],
+        prescriptionUrl: downloadUrl,
+      );
+      
+      messageDao!.saveMessage(message);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Prescription sent successfully!"),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error uploading prescription: $e"),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
+    }
+  }
+
+  void _viewPrescription(String prescriptionId, String prescriptionUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PrescriptionViewerChat(
+          prescriptionId: prescriptionId,
+          prescriptionUrl: prescriptionUrl,
+          doctorName: widget.user2Name,
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(String timeString) {
+    try {
+      final DateTime time = DateTime.parse(timeString).toLocal();
+      final now = DateTime.now();
+      final difference = now.difference(time);
+      
+      if (difference.inMinutes < 1) {
+        return 'Just now';
+      } else if (difference.inHours < 1) {
+        return '${difference.inMinutes}m ago';
+      } else if (difference.inDays < 1) {
+        return DateFormat('h:mm a').format(time);
+      } else if (difference.inDays < 7) {
+        return DateFormat('EEE h:mm a').format(time);
+      } else {
+        return DateFormat('MMM d, h:mm a').format(time);
+      }
+    } catch (e) {
+      return 'Just now';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1E40AF)),
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            CircleAvatar(backgroundImage: NetworkImage(widget.profileUrl)),
-            const SizedBox(width: 10),
-            Text(
-              widget.user2Name.length > 12
-                  ? widget.user2Name.substring(0, 12)
-                  : widget.user2Name,
-            ),
-          ],
-        ),
-        actions: const [
-          Icon(Icons.call),
-          SizedBox(width: 10),
-          Icon(Icons.videocam),
-          SizedBox(width: 10),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: _buildAppBar(),
       body: Column(
         children: [
+          if (_isUploading)
+            LinearProgressIndicator(
+              backgroundColor: Colors.grey.shade200,
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1E40AF)),
+            ),
           Expanded(child: _buildMessageList()),
           _buildMessageInput(),
+        ],
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      leading: IconButton(
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E40AF).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.arrow_back, color: Color(0xFF1E40AF), size: 20),
+        ),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF1E40AF).withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: Colors.grey[100],
+              backgroundImage: widget.profileUrl.isNotEmpty
+                  ? NetworkImage(widget.profileUrl)
+                  : null,
+              child: widget.profileUrl.isEmpty
+                  ? Icon(Icons.person, size: 24, color: Colors.grey.shade400)
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.user2Name,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1E40AF),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  "Online",
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: Colors.green,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -102,6 +331,11 @@ class _ChatRoomState extends State<ChatRoom> {
     return FirebaseAnimatedList(
       controller: _scrollController,
       query: messageDao!.getMessageQuery(),
+      defaultChild: const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1E40AF)),
+        ),
+      ),
       itemBuilder: (context, snapshot, animation, index) {
         if (snapshot.value == null || snapshot.value is! Map) {
           return const SizedBox.shrink();
@@ -110,52 +344,106 @@ class _ChatRoomState extends State<ChatRoom> {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
         final msg = Message.fromJson(data);
 
-        return MessageWidget(
-          message: msg.message,
-          time: msg.time,
-          isMe: msg.senderId == user!.uid,
+        return SizeTransition(
+          sizeFactor: animation,
+          child: MessageWidget(
+            message: msg.message,
+            time: _formatTime(msg.time),
+            isMe: msg.senderId == user!.uid,
+            showStatus: index == 0 && msg.senderId == user!.uid,
+            type: msg.type ?? 'text',
+            prescriptionId: msg.prescriptionId,
+            prescriptionUrl: msg.prescriptionUrl,
+            onPrescriptionTap: () => _viewPrescription(msg.prescriptionId ?? '', msg.prescriptionUrl ?? ''),
+          ),
         );
       },
     );
   }
 
   Widget _buildMessageInput() {
-    return BottomAppBar(
-      child: SizedBox(
-        height: 50,
-        child: Row(
-          children: [
-            IconButton(icon: const Icon(Icons.attach_file), onPressed: () {}),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  color: Colors.grey[200],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Prescription Upload Button (Only for Doctors)
+              if (user?.uid != widget.user2Id)
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.medical_information, color: Colors.white, size: 22),
+                    onPressed: _isUploading ? null : _sendPrescription,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 10),
-                    const Icon(Icons.insert_emoticon),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        decoration: const InputDecoration(
-                          hintText: "Type a message",
-                          border: InputBorder.none,
+              
+              const SizedBox(width: 8),
+              
+              // Message Input Field
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F7FB),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.emoji_emotions_outlined, size: 22),
+                        color: Colors.grey.shade500,
+                        onPressed: () {},
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          focusNode: _focusNode,
+                          style: GoogleFonts.poppins(fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: "Type a message...",
+                            hintStyle: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.grey.shade400,
+                            ),
+                            border: InputBorder.none,
+                          ),
+                          onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.send),
-                      onPressed: _sendMessage,
-                    ),
-                  ],
+                      IconButton(
+                        icon: Icon(
+                          Icons.send,
+                          color: _messageController.text.trim().isEmpty 
+                              ? Colors.grey.shade400 
+                              : const Color(0xFF1E40AF),
+                          size: 22,
+                        ),
+                        onPressed: _sendMessage,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -166,33 +454,343 @@ class MessageWidget extends StatelessWidget {
   final String message;
   final String time;
   final bool isMe;
+  final bool showStatus;
+  final String type;
+  final String? prescriptionId;
+  final String? prescriptionUrl;
+  final VoidCallback? onPrescriptionTap;
 
   const MessageWidget({
     Key? key,
     required this.message,
     required this.time,
     required this.isMe,
+    this.showStatus = false,
+    this.type = 'text',
+    this.prescriptionId,
+    this.prescriptionUrl,
+    this.onPrescriptionTap,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      margin: EdgeInsets.fromLTRB(isMe ? 60 : 8, 5, isMe ? 8 : 60, 5),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.only(
-            topLeft: isMe ? const Radius.circular(15) : Radius.zero,
-            topRight: isMe ? Radius.zero : const Radius.circular(15),
-            bottomLeft: const Radius.circular(15),
-            bottomRight: const Radius.circular(15),
+      margin: EdgeInsets.fromLTRB(isMe ? 60 : 16, 8, isMe ? 16 : 60, 8),
+      child: Column(
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              gradient: isMe
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.grey.shade200, Colors.grey.shade100],
+                    ),
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(20),
+                topRight: const Radius.circular(20),
+                bottomLeft: isMe ? const Radius.circular(20) : Radius.zero,
+                bottomRight: isMe ? Radius.zero : const Radius.circular(20),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isMe 
+                      ? const Color(0xFF1E40AF).withOpacity(0.2)
+                      : Colors.grey.withOpacity(0.1),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: type == 'prescription'
+                ? _buildPrescriptionContent()
+                : Text(
+                    message,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      color: isMe ? Colors.white : Colors.black87,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
           ),
-          color: isMe ? Colors.blue[300] : Colors.grey[300],
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                time,
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+              if (showStatus && isMe) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.done_all,
+                  size: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrescriptionContent() {
+    return InkWell(
+      onTap: onPrescriptionTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.picture_as_pdf,
+            color: isMe ? Colors.white : const Color(0xFF1E40AF),
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '📋 Prescription',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isMe ? Colors.white : const Color(0xFF1E40AF),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Tap to view prescription',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: isMe ? Colors.white70 : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.visibility,
+            color: isMe ? Colors.white70 : const Color(0xFF1E40AF),
+            size: 18,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Prescription Viewer for Chat
+class PrescriptionViewerChat extends StatelessWidget {
+  final String prescriptionId;
+  final String prescriptionUrl;
+  final String doctorName;
+
+  const PrescriptionViewerChat({
+    Key? key,
+    required this.prescriptionId,
+    required this.prescriptionUrl,
+    required this.doctorName,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: Container(
+          margin: const EdgeInsets.only(left: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E40AF).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios, size: 20),
+            color: const Color(0xFF1E40AF),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
-        child: Text(
-          message,
-          style: const TextStyle(fontSize: 16),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'E-Prescription',
+              style: GoogleFonts.poppins(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E40AF),
+              ),
+            ),
+            Text(
+              'Prescribed by $doctorName',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Doctor Info Card
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 15,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
+                      ),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Icon(Icons.medical_services, color: Colors.white, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Prescribed by',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          doctorName,
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1E40AF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Prescription Image
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 15,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Image.network(
+                    prescriptionUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        height: 400,
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1E40AF)),
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 400,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image, size: 64, color: Colors.grey.shade400),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Failed to load prescription',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Info Note
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade100),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 20, color: Colors.blue.shade700),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'This is an official prescription issued by your doctor. Please keep it for your records.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.blue.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

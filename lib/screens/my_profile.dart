@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-//import 'package:google_fonts/google_fonts.dart';
 import 'package:health_app1/firestore_data/appointment_history_list.dart';
 import 'package:health_app1/globals.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,6 +25,10 @@ class _MyProfileState extends State<MyProfile> {
   String? email, name, phone, bio, specialization;
   String image =
       'https://cdn.icon-icons.com/icons2/1378/PNG/512/avatardefault_92824.png';
+  
+  bool _isEditingPhone = false;
+  final TextEditingController _phoneController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -33,12 +36,21 @@ class _MyProfileState extends State<MyProfile> {
     _loadUserProfile();
   }
 
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadUserProfile() async {
+    setState(() => _isLoading = true);
+    
     user = _auth.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('User not logged in')),
       );
+      setState(() => _isLoading = false);
       return;
     }
 
@@ -52,6 +64,7 @@ class _MyProfileState extends State<MyProfile> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('User data not found')),
         );
+        setState(() => _isLoading = false);
         return;
       }
 
@@ -63,12 +76,71 @@ class _MyProfileState extends State<MyProfile> {
         bio = data['bio'] ?? 'Not Added';
         specialization = data['specialization'];
         image = data['profilePhoto'] ?? image;
+        _phoneController.text = phone != 'Not Added' ? phone! : '';
+        _isLoading = false;
       });
     } catch (e) {
       print('Load error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error loading user data')),
       );
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _updatePhoneNumber() async {
+    String newPhone = _phoneController.text.trim();
+    
+    // Validate phone number
+    if (newPhone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number cannot be empty')),
+      );
+      return;
+    }
+    
+    if (newPhone.length != 11) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number must be exactly 11 digits')),
+      );
+      return;
+    }
+    
+    if (!RegExp(r'^[0-9]+$').hasMatch(newPhone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number must contain only digits')),
+      );
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      await FirebaseFirestore.instance
+          .collection(isDoctor ? 'doctor' : 'patient')
+          .doc(user!.uid)
+          .update({'phone': newPhone});
+      
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .update({'phone': newPhone});
+      
+      setState(() {
+        phone = newPhone;
+        _isEditingPhone = false;
+        _isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phone number updated successfully'), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      print('Update error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error updating phone number'), backgroundColor: Colors.red),
+      );
+      setState(() => _isLoading = false);
     }
   }
 
@@ -78,7 +150,7 @@ class _MyProfileState extends State<MyProfile> {
 
       XFile? pickedFile = await picker.pickImage(
         source: kIsWeb ? ImageSource.gallery : source,
-        imageQuality: 12,
+        imageQuality: 80,
       );
 
       if (pickedFile == null) {
@@ -88,6 +160,8 @@ class _MyProfileState extends State<MyProfile> {
         return;
       }
 
+      setState(() => _isLoading = true);
+      
       final imageBytes = await pickedFile.readAsBytes();
       await uploadFile(imageBytes, pickedFile.name);
     } catch (e) {
@@ -95,6 +169,7 @@ class _MyProfileState extends State<MyProfile> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error picking image')),
       );
+      setState(() => _isLoading = false);
     }
   }
 
@@ -119,16 +194,18 @@ class _MyProfileState extends State<MyProfile> {
 
       setState(() {
         image = url;
+        _isLoading = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile picture updated')),
+        const SnackBar(content: Text('Profile picture updated'), backgroundColor: Colors.green),
       );
     } catch (e) {
       print('Upload error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error uploading profile photo')),
+        const SnackBar(content: Text('Error uploading profile photo'), backgroundColor: Colors.red),
       );
+      setState(() => _isLoading = false);
     }
   }
 
@@ -136,17 +213,17 @@ class _MyProfileState extends State<MyProfile> {
     showDialog(
       context: context,
       builder: (_) => SimpleDialog(
-        title: const Text('Select photo'),
+        title: const Text('Select Photo'),
         children: [
           SimpleDialogOption(
-            child: const Text('From gallery'),
+            child: const Text('📸 From Gallery'),
             onPressed: () {
               Navigator.pop(context);
               selectOrTakePhoto(ImageSource.gallery);
             },
           ),
           SimpleDialogOption(
-            child: const Text('Take a photo'),
+            child: const Text('📷 Take a Photo'),
             onPressed: () {
               Navigator.pop(context);
               selectOrTakePhoto(ImageSource.camera);
@@ -160,82 +237,252 @@ class _MyProfileState extends State<MyProfile> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: user == null
-            ? const Center(child: CircularProgressIndicator())
-            : NotificationListener<OverscrollIndicatorNotification>(
-          onNotification: (overscroll) {
-            overscroll.disallowIndicator();
-            return true;
-          },
-          child: ListView(
-            physics: const ClampingScrollPhysics(),
-            children: [
-              _buildHeader(context),
-              _buildInfoCard(),
-              _buildBioCard(),
-              _buildAppointmentHistoryCard(),
-              const SizedBox(height: 30),
-            ],
+      backgroundColor: Colors.grey.shade50,
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.indigo),
+              ),
+            )
+          : SafeArea(
+              child: RefreshIndicator(
+                onRefresh: _loadUserProfile,
+                child: NotificationListener<OverscrollIndicatorNotification>(
+                  onNotification: (overscroll) {
+                    overscroll.disallowIndicator();
+                    return true;
+                  },
+                  child: ListView(
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      _buildHeader(context),
+                      const SizedBox(height: 20),
+                      _buildStatsCards(),
+                      const SizedBox(height: 10),
+                      _buildInfoCard(),
+                      const SizedBox(height: 15),
+                      _buildBioCard(),
+                      const SizedBox(height: 15),
+                      _buildAppointmentHistoryCard(),
+                      const SizedBox(height: 30),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildStatsCards() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatCard(
+              icon: Icons.medical_services,
+              label: 'Role',
+              value: isDoctor ? 'Doctor' : 'Patient',
+              color: Colors.blue,
+            ),
           ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _buildStatCard(
+              icon: Icons.star,
+              label: 'Status',
+              value: 'Active',
+              color: Colors.green,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _buildStatCard(
+              icon: Icons.calendar_today,
+              label: 'Member Since',
+              value: '2024',
+              color: Colors.orange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
         ),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildHeader(BuildContext context) {
     return Stack(
+      clipBehavior: Clip.none,
       alignment: Alignment.center,
       children: [
-        Column(
-          children: [
-            Container(
-              height: MediaQuery.of(context).size.height / 5,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: [0.1, 0.5],
-                  colors: [Colors.indigo, Colors.indigoAccent],
+        Container(
+          height: MediaQuery.of(context).size.height / 4.5,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1A237E), Color(0xFF0D47A1)],
+            ),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(30),
+              bottomRight: Radius.circular(30),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.indigo.shade200.withOpacity(0.5),
+                blurRadius: 20,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                top: 20,
+                right: 20,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.settings, color: Colors.white, size: 22),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const UserSettings()),
+                      ).then((_) => _loadUserProfile());
+                    },
+                  ),
                 ),
               ),
-              child: Align(
-                alignment: Alignment.topRight,
-                child: IconButton(
-                  icon: const Icon(Icons.settings, color: Colors.white, size: 20),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const UserSettings()),
-                    ).then((_) => _loadUserProfile());
-                  },
+              Positioned(
+                top: 20,
+                left: 20,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
               ),
-            ),
-            Container(
-              alignment: Alignment.center,
-              height: MediaQuery.of(context).size.height / 6,
-              padding: const EdgeInsets.only(top: 75),
-              child: Text(
-                name ?? 'Name Not Added',
-                style: GoogleFonts.lato(fontSize: 25, fontWeight: FontWeight.bold),
-              ),
-            ),
-            Text(specialization?.isNotEmpty == true ? '($specialization)' : ''),
-          ],
+            ],
+          ),
         ),
-        InkWell(
-          onTap: () => _showSelectionDialog(context),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.teal.shade50, width: 5),
-              shape: BoxShape.circle,
+        Positioned(
+          bottom: -60,
+          child: InkWell(
+            onTap: () => _showSelectionDialog(context),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white, width: 4),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.indigo.shade300.withOpacity(0.5),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 70,
+                backgroundColor: Colors.white,
+                backgroundImage: NetworkImage(image),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black54,
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+              ),
             ),
-            child: CircleAvatar(
-              radius: 80,
-              backgroundColor: Colors.white,
-              backgroundImage: NetworkImage(image),
-            ),
+          ),
+        ),
+        Positioned(
+          bottom: -130,
+          left: 0,
+          right: 0,
+          child: Column(
+            children: [
+              Text(
+                name ?? 'Name Not Added',
+                style: GoogleFonts.poppins(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.indigo.shade900,
+                ),
+              ),
+              const SizedBox(height: 5),
+              if (specialization?.isNotEmpty == true)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.indigo.shade400, Colors.indigo.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    specialization!,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ],
@@ -243,68 +490,256 @@ class _MyProfileState extends State<MyProfile> {
   }
 
   Widget _buildInfoCard() {
-    return _infoCard([
-      _infoRow(Icons.mail, Colors.red[900], email ?? 'Email Not Added'),
-      const SizedBox(height: 15),
-      _infoRow(Icons.phone, Colors.blue[800], phone ?? 'Not Added'),
-    ]);
-  }
-
-  Widget _buildBioCard() {
-    return _infoCard([
-      _infoRow(Icons.edit, Colors.indigo[600], 'Bio', isTitle: true),
-      const SizedBox(height: 10),
-      Padding(
-        padding: const EdgeInsets.only(left: 40),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            bio ?? 'Not Added',
-            style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black38),
-          ),
-        ),
-      ),
-    ], topMargin: 20);
-  }
-
-  Widget _buildAppointmentHistoryCard() {
     return Container(
-      margin: const EdgeInsets.only(left: 15, right: 15, top: 20),
-      padding: const EdgeInsets.only(left: 20, top: 20),
-      height: MediaQuery.of(context).size.height / 2,
-      width: MediaQuery.of(context).size.width,
+      margin: const EdgeInsets.symmetric(horizontal: 15),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: Colors.blueGrey[50],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Colors.grey.shade50],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Row(
+          _buildInfoRow(
+            icon: Icons.email,
+            iconColor: Colors.red,
+            title: 'Email',
+            value: email ?? 'Email Not Added',
+          ),
+          const Divider(height: 30),
+          _buildPhoneRow(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhoneRow() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.blue.shade400, Colors.blue.shade600],
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.phone, color: Colors.white, size: 20),
+        ),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _circleIcon(Icons.history, Colors.green[900]),
-              const SizedBox(width: 10),
-              const Text("Appointment History", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const AppointmentHistoryList()));
-                    },
-                    child: const Text('View all'),
+              Text(
+                'Phone Number',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (_isEditingPhone)
+                TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  maxLength: 11,
+                  decoration: InputDecoration(
+                    hintText: 'Enter 11-digit number',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.blue, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    counterText: '',
+                  ),
+                  style: GoogleFonts.poppins(fontSize: 14),
+                  autofocus: true,
+                )
+              else
+                Text(
+                  phone ?? 'Not Added',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
                 ),
-              )
             ],
           ),
-          const SizedBox(height: 10),
-          const Expanded(
-            child: Scrollbar(
-              thumbVisibility: true,
-              child: Padding(
-                padding: EdgeInsets.only(right: 15),
-                child: AppointmentHistoryList(),
+        ),
+        if (!_isEditingPhone)
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+              onPressed: () {
+                _phoneController.text = phone != 'Not Added' ? phone! : '';
+                setState(() => _isEditingPhone = true);
+              },
+            ),
+          )
+        else
+          Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.check, color: Colors.green, size: 20),
+                  onPressed: _updatePhoneNumber,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                  onPressed: () {
+                    _phoneController.clear();
+                    setState(() => _isEditingPhone = false);
+                  },
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [iconColor.withOpacity(0.2), iconColor.withOpacity(0.1)],
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBioCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 15),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Colors.grey.shade50],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple.shade400, Colors.purple.shade600],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.edit_note, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 15),
+              Text(
+                'Bio',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.indigo.shade900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Text(
+              bio ?? 'No bio added yet. Tap edit to add your bio.',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: bio == 'Not Added' ? Colors.grey.shade400 : Colors.black87,
+                height: 1.5,
               ),
             ),
           ),
@@ -313,48 +748,81 @@ class _MyProfileState extends State<MyProfile> {
     );
   }
 
-  Widget _infoCard(List<Widget> children, {double topMargin = 0}) {
+  Widget _buildAppointmentHistoryCard() {
     return Container(
-      margin: EdgeInsets.only(left: 15, right: 15, top: topMargin),
-      padding: const EdgeInsets.only(left: 20),
-      height: MediaQuery.of(context).size.height / 7,
-      width: MediaQuery.of(context).size.width,
+      margin: const EdgeInsets.symmetric(horizontal: 15),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: Colors.blueGrey[50],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Colors.grey.shade50],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: children,
-      ),
-    );
-  }
-
-  Widget _infoRow(IconData icon, Color? color, String text, {bool isTitle = false}) {
-    return Row(
-      children: [
-        _circleIcon(icon, color),
-        const SizedBox(width: 10),
-        Text(
-          text,
-          style: GoogleFonts.lato(
-            fontSize: 16,
-            fontWeight: isTitle ? FontWeight.bold : FontWeight.w600,
-            color: isTitle ? Colors.black : Colors.black54,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.teal.shade400, Colors.teal.shade600],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.history, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Text(
+                  "Appointment History",
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo.shade900,
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.indigo.shade400, Colors.indigo.shade600],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AppointmentHistoryList()),
+                    );
+                  },
+                  child: const Text(
+                    'View All',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _circleIcon(IconData icon, Color? bgColor) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        height: 27,
-        width: 27,
-        color: bgColor ?? Colors.grey,
-        child: Icon(icon, color: Colors.white, size: 16),
+          const SizedBox(height: 15),
+          SizedBox(
+            height: MediaQuery.of(context).size.height / 3.5,
+            child: const Scrollbar(
+              thumbVisibility: true,
+              child: AppointmentHistoryList(),
+            ),
+          ),
+        ],
       ),
     );
   }

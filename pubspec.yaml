@@ -43,6 +43,7 @@ dependencies:
   fluttericon: 
   google_fonts: 
   google_nav_bar:
+  permission_handler: 
 
 
   pdf: 
