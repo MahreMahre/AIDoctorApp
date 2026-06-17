@@ -16,7 +16,7 @@ class _SkipState extends State<Skip> {
     return [
       PageViewModel(
         title: '',
-        image: _buildImageWithGradient('assets/images/doc.png'),
+        image: _buildImage('assets/images/doc.png'),
         bodyWidget: _buildBodyWidget(
           title: 'Search Doctors',
           subtitle: 'Find popular doctors nearby you',
@@ -31,7 +31,7 @@ class _SkipState extends State<Skip> {
       ),
       PageViewModel(
         title: '',
-        image: _buildImageWithGradient('assets/images/disease.png'),
+        image: _buildImage('assets/images/disease.png'),
         bodyWidget: _buildBodyWidget(
           title: 'Search Disease',
           subtitle: 'Find information about diseases and treatments',
@@ -46,8 +46,7 @@ class _SkipState extends State<Skip> {
       ),
       PageViewModel(
         title: '',
-        image: _buildImageWithGradient('assets/images/appointment.jpg', 
-            defaultAsset: 'assets/images/doc.png'),
+        image: _buildImage('assets/images/appointment.jpg'),
         bodyWidget: _buildBodyWidget(
           title: 'Book Appointments',
           subtitle: 'Easy and quick appointment booking with top doctors',
@@ -62,8 +61,7 @@ class _SkipState extends State<Skip> {
       ),
       PageViewModel(
         title: '',
-        image: _buildImageWithGradient('assets/images/chat.png',
-            defaultAsset: 'assets/images/doc.png'),
+        image: _buildImage('assets/images/chat.png'),
         bodyWidget: _buildBodyWidget(
           title: 'Chat with Doctors',
           subtitle: 'Get instant consultation through chat',
@@ -79,7 +77,7 @@ class _SkipState extends State<Skip> {
     ];
   }
 
-  Widget _buildImageWithGradient(String assetPath, {String? defaultAsset}) {
+  Widget _buildImage(String assetPath) {
     return Container(
       margin: const EdgeInsets.all(20),
       height: 250,
@@ -157,8 +155,8 @@ class _SkipState extends State<Skip> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 15),
-        Container(
-          constraints: const BoxConstraints(maxWidth: 300),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
             subtitle,
             textAlign: TextAlign.center,
@@ -175,6 +173,9 @@ class _SkipState extends State<Skip> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 400;
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -194,9 +195,9 @@ class _SkipState extends State<Skip> {
             showNextButton: true,
             showSkipButton: true,
             showDoneButton: true,
-            next: _buildNextButton(),
-            skip: _buildSkipButton(),
-            done: _buildDoneButton(),
+            next: _buildNextButton(isSmallScreen),
+            skip: _buildSkipButton(isSmallScreen),
+            done: _buildDoneButton(isSmallScreen),
             onDone: () => _pushPage(context, const FireBaseAuth()),
             onSkip: () => _pushPage(context, const FireBaseAuth()),
             dotsDecorator: DotsDecorator(
@@ -210,7 +211,6 @@ class _SkipState extends State<Skip> {
               spacing: const EdgeInsets.symmetric(horizontal: 6),
             ),
             curve: Curves.easeInOut,
-            // animationDuration: const Duration(milliseconds: 500),
             controlsMargin: const EdgeInsets.all(16),
             controlsPadding: const EdgeInsets.symmetric(horizontal: 20),
           ),
@@ -219,10 +219,10 @@ class _SkipState extends State<Skip> {
     );
   }
 
-  Widget _buildSkipButton() {
+  Widget _buildSkipButton(bool isSmallScreen) {
     return Container(
-      height: 45,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      height: isSmallScreen ? 40 : 45,
+      padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 15 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -243,7 +243,7 @@ class _SkipState extends State<Skip> {
           'Skip',
           style: GoogleFonts.poppins(
             color: Colors.white,
-            fontSize: 14,
+            fontSize: isSmallScreen ? 12 : 14,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -251,10 +251,10 @@ class _SkipState extends State<Skip> {
     );
   }
 
-  Widget _buildNextButton() {
+  Widget _buildNextButton(bool isSmallScreen) {
     return Container(
-      height: 45,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      height: isSmallScreen ? 40 : 45,
+      padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 15 : 20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -277,58 +277,61 @@ class _SkipState extends State<Skip> {
             'Next',
             style: GoogleFonts.poppins(
               color: Colors.white,
-              fontSize: 14,
+              fontSize: isSmallScreen ? 12 : 14,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(width: 8),
-          const Icon(
+          Icon(
             Icons.arrow_forward,
             color: Colors.white,
-            size: 16,
+            size: isSmallScreen ? 14 : 16,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDoneButton() {
-    return Container(
-      height: 45,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1A237E), Color(0xFF0D47A1)],
-        ),
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1A237E).withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+  Widget _buildDoneButton(bool isSmallScreen) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        height: isSmallScreen ? 40 : 45,
+        padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 15 : 20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1A237E), Color(0xFF0D47A1)],
           ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Get Started',
-            style: GoogleFonts.poppins(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1A237E).withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.check_circle,
-            color: Colors.white,
-            size: 16,
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          // mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Get Started',
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: isSmallScreen ? 12 : 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Icon(
+            //   Icons.check_circle,
+            //   color: Colors.white,
+            //   size: isSmallScreen ? 14 : 16,
+            // ),
+          ],
+        ),
       ),
     );
   }

@@ -44,6 +44,7 @@ dependencies:
   google_fonts: 
   google_nav_bar:
   permission_handler: 
+  # url_launcher:
 
 
   pdf: 

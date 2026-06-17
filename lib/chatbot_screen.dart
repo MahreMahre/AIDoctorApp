@@ -43,7 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
   
   // AI Configuration
   late GenerativeModel _aiModel;
-  final String _apiKey = 'YOUR_GEMINI_API_KEY'; // Replace with your API key
+  final String _apiKey = 'YOUR_GEMINI_API_KEY';
   
   final Map<String, String> _languages = {
     'en': 'English',
@@ -76,6 +76,77 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Map<String, dynamic>> _userAppointments = [];
   bool _loadingAppointments = false;
 
+  // Doctor specialization mapping with exact keywords
+  final Map<String, List<String>> _symptomToSpecialization = {
+    'heart': ['cardiologist', 'cardiology'],
+    'chest pain': ['cardiologist', 'cardiology'],
+    'palpitations': ['cardiologist', 'cardiology'],
+    'fever': ['general physician', 'internal medicine', 'general'],
+    'temperature': ['general physician', 'internal medicine', 'general'],
+    'headache': ['neurologist', 'general'],
+    'migraine': ['neurologist', 'general'],
+    'cough': ['pulmonologist', 'ent', 'general'],
+    'cold': ['ent', 'general', 'pulmonologist'],
+    'sore throat': ['ent', 'general'],
+    'pain': ['orthopedic', 'neurologist', 'general'],
+    'muscle pain': ['orthopedic', 'general'],
+    'joint pain': ['orthopedic', 'rheumatologist', 'general'],
+    'body pain': ['general', 'orthopedic'],
+    'stomach': ['gastroenterologist', 'general'],
+    'abdominal': ['gastroenterologist', 'general'],
+    'nausea': ['gastroenterologist', 'general'],
+    'vomiting': ['gastroenterologist', 'general'],
+    'breath': ['pulmonologist', 'cardiologist', 'general'],
+    'breathing': ['pulmonologist', 'cardiologist', 'general'],
+    'chest': ['cardiologist', 'pulmonologist', 'general'],
+    'allergy': ['allergist', 'ent', 'dermatologist'],
+    'skin': ['dermatologist', 'general'],
+    'rash': ['dermatologist', 'general'],
+    'eye': ['ophthalmologist', 'general'],
+    'vision': ['ophthalmologist', 'general'],
+    'ear': ['ent', 'general'],
+    'hearing': ['ent', 'general'],
+    'throat': ['ent', 'general'],
+    'joint': ['orthopedic', 'rheumatologist', 'general'],
+    'diabetes': ['endocrinologist', 'general'],
+    'blood sugar': ['endocrinologist', 'general'],
+    'thyroid': ['endocrinologist', 'general'],
+    'mental': ['psychiatrist', 'psychologist', 'general'],
+    'depression': ['psychiatrist', 'psychologist', 'general'],
+    'anxiety': ['psychiatrist', 'psychologist', 'general'],
+    'stress': ['psychiatrist', 'psychologist', 'general'],
+    'pregnancy': ['gynecologist', 'obstetrician', 'general'],
+    'women': ['gynecologist', 'general'],
+    'menstrual': ['gynecologist', 'general'],
+    'child': ['pediatrician', 'general'],
+    'baby': ['pediatrician', 'general'],
+    'kidney': ['nephrologist', 'general'],
+    'urine': ['nephrologist', 'general'],
+    'liver': ['gastroenterologist', 'hepatologist', 'general'],
+    'jaundice': ['gastroenterologist', 'hepatologist', 'general'],
+    'back pain': ['orthopedic', 'neurologist', 'general'],
+    'neck pain': ['orthopedic', 'neurologist', 'general'],
+    'dizziness': ['neurologist', 'general'],
+    'fainting': ['neurologist', 'cardiologist', 'general'],
+    'sleep': ['psychiatrist', 'neurologist', 'general'],
+    'insomnia': ['psychiatrist', 'neurologist', 'general'],
+    'weight loss': ['endocrinologist', 'gastroenterologist', 'general'],
+    'weight gain': ['endocrinologist', 'general'],
+    'infection': ['general', 'infectious disease'],
+    'wound': ['general', 'surgeon'],
+    'injury': ['orthopedic', 'general'],
+    'fracture': ['orthopedic', 'general'],
+    'burn': ['general', 'dermatologist'],
+    'cancer': ['oncologist', 'general'],
+    'tumor': ['oncologist', 'general'],
+    'blood': ['hematologist', 'general'],
+    'anemia': ['hematologist', 'general'],
+    'stroke': ['neurologist', 'cardiologist'],
+    'paralysis': ['neurologist', 'general'],
+    'seizure': ['neurologist', 'general'],
+    'epilepsy': ['neurologist', 'general'],
+  };
+
   @override
   void initState() {
     super.initState();
@@ -85,7 +156,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadUserAppointments();
     _addWelcomeMessage();
     
-    // Add listener to scroll when keyboard appears
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) {
         _scrollToBottom();
@@ -116,9 +186,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void _addWelcomeMessage() {
     _messages.add({
       "role": "bot",
-      "text": "👋 Hi! I'm your AI Health Assistant.\n\nI can:\n✅ Analyze your symptoms\n✅ Provide medical advice\n✅ Recommend doctors\n✅ Book appointments\n✅ Understand voice commands\n✅ Translate messages\n\n**How to use:**\n• Describe your symptoms like \"I have fever and headache\"\n• Type \"find doctor\" to see all doctors\n• Long press any message to translate\n• Tap microphone for voice input\n\nHow can I help you today?",
+      "text": "👋 Hi! I'm your AI Health Assistant.\n\nI can:\n✅ Analyze your symptoms\n✅ Provide medical advice\n✅ Recommend specialist doctors\n✅ Book appointments\n✅ Understand voice commands\n✅ Translate messages\n\n**How to use:**\n• Describe your symptoms like \"I have heart pain\"\n• Type \"find doctor\" to see all doctors\n• Long press any message to translate\n• Tap microphone for voice input\n\nHow can I help you today?",
       "timestamp": DateTime.now(),
-      "originalText": "👋 Hi! I'm your AI Health Assistant powered by Google Gemini.\n\nI can:\n✅ Analyze your symptoms\n✅ Provide medical advice\n✅ Recommend doctors\n✅ Book appointments\n✅ Understand voice commands\n✅ Translate messages\n\n**How to use:**\n• Describe your symptoms like \"I have fever and headache\"\n• Type \"find doctor\" to see all doctors\n• Long press any message to translate\n• Tap microphone for voice input\n\nHow can I help you today?"
+      "originalText": "👋 Hi! I'm your AI Health Assistant powered by Google Gemini.\n\nI can:\n✅ Analyze your symptoms\n✅ Provide medical advice\n✅ Recommend specialist doctors\n✅ Book appointments\n✅ Understand voice commands\n✅ Translate messages\n\n**How to use:**\n• Describe your symptoms like \"I have heart pain\"\n• Type \"find doctor\" to see all doctors\n• Long press any message to translate\n• Tap microphone for voice input\n\nHow can I help you today?"
     });
     _scrollToBottom();
   }
@@ -157,7 +227,7 @@ class _ChatScreenState extends State<ChatScreen> {
       4. Be empathetic, professional, and friendly
       5. Provide health tips and preventive measures
       6. Keep responses concise but informative (max 200 words)
-      7. Always start with emoji related to symptoms (🤒 for fever, 🤕 for headache, etc.)
+      7. Always start with emoji related to symptoms
       
       Remember: You are not a replacement for professional medical advice.
       Always recommend consulting healthcare professionals when needed.
@@ -181,22 +251,14 @@ class _ChatScreenState extends State<ChatScreen> {
   String _getFallbackResponse(String userMessage) {
     String lowerMsg = userMessage.toLowerCase();
     
-    if (lowerMsg.contains('fever')) {
-      return "🤒 **Fever Analysis**\n\nBased on your symptoms, here's what I recommend:\n\n• **Rest** and stay hydrated\n• Take **paracetamol** if needed\n• Monitor temperature regularly\n• Consult a **General Physician** if fever persists >3 days\n\n**Would you like me to show you available doctors?** (Type 'find doctor' to see list)";
+    if (lowerMsg.contains('heart') || lowerMsg.contains('chest pain')) {
+      return "❤️ **Heart Health**\n\n• Rest immediately\n• Avoid strenuous activity\n• Monitor symptoms\n\n**IMPORTANT:** If severe, call emergency services immediately.\n\nConsult a **Cardiologist** for proper evaluation.\n\n**Finding Cardiologists near you...**";
+    } else if (lowerMsg.contains('fever')) {
+      return "🤒 **Fever Analysis**\n\n• **Rest** and stay hydrated\n• Take **paracetamol** if needed\n• Monitor temperature regularly\n• Consult a **General Physician** if fever persists >3 days\n\n**Finding General Physicians for you...**";
     } else if (lowerMsg.contains('headache')) {
-      return "🤕 **Headache Relief Tips**\n\n• Rest in a dark, quiet room\n• Stay hydrated\n• Apply cold compress\n• Limit screen time\n• Try relaxation techniques\n\nIf severe or persistent, please consult a **Neurologist**.\n\n**Need a doctor? Type 'find doctor' to see specialists near you.**";
-    } else if (lowerMsg.contains('cough') || lowerMsg.contains('cold')) {
-      return "🤧 **Cold & Cough Remedies**\n\n• Warm fluids (tea, soup)\n• Steam inhalation\n• Gargle with salt water\n• Take honey for cough\n• Get plenty of rest\n\nSee an **ENT Specialist** if symptoms worsen.\n\n**Want to consult a doctor? Type 'find doctor' to book an appointment.**";
-    } else if (lowerMsg.contains('pain')) {
-      return "💢 **Pain Management**\n\n• Apply ice or heat as appropriate\n• Gentle stretching\n• Over-the-counter pain relief\n• Rest the affected area\n\nConsult an **Orthopedic Specialist** for persistent pain.\n\n**Show me doctors - Type 'find doctor' to see available specialists.**";
-    } else if (lowerMsg.contains('stomach') || lowerMsg.contains('abdominal')) {
-      return "🍽️ **Stomach Issues**\n\n• Drink warm water\n• Avoid spicy/oily food\n• Eat small meals\n• Ginger tea for relief\n\nConsult a **Gastroenterologist** if symptoms persist.\n\n**Need medical help? Type 'find doctor' to see gastroenterologists.**";
-    } else if (lowerMsg.contains('breath') || lowerMsg.contains('breathing')) {
-      return "🫁 **Breathing Issues**\n\n• Sit upright\n• Practice deep breathing\n• Use a humidifier\n• Avoid triggers\n\n**IMPORTANT:** If severe, seek immediate medical attention.\n\nConsult a **Pulmonologist** for proper diagnosis.\n\n**Type 'find doctor' to see pulmonologists near you.**";
-    } else if (lowerMsg.contains('hello') || lowerMsg.contains('hi')) {
-      return "👋 **Hello!**\n\nI'm your AI Health Assistant. I can help you with:\n\n• Symptom analysis\n• Health advice\n• Doctor recommendations\n• Appointment booking\n\n**How can I assist you today?** Try describing any symptoms you have!";
+      return "🤕 **Headache Relief Tips**\n\n• Rest in a dark, quiet room\n• Stay hydrated\n• Apply cold compress\n• Limit screen time\n\nIf severe or persistent, consult a **Neurologist**.\n\n**Finding Neurologists near you...**";
     } else {
-      return "Thank you for sharing. As a medical AI assistant, I recommend consulting a healthcare professional for a proper diagnosis.\n\n**Would you like me to help you find a doctor?**\n\n👉 Just type **'find doctor'** to see all available doctors near you!";
+      return "Thank you for sharing. I'm analyzing your symptoms and finding the right specialist for you...";
     }
   }
 
@@ -375,6 +437,36 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  List<String> _getMatchingSpecializations(String symptoms) {
+    String lowerSymptoms = symptoms.toLowerCase();
+    Set<String> matchingSpecs = {};
+    
+    // Check each symptom keyword
+    _symptomToSpecialization.forEach((symptom, specializations) {
+      if (lowerSymptoms.contains(symptom)) {
+        matchingSpecs.addAll(specializations);
+      }
+    });
+    
+    // If no match found, return general physicians only
+    if (matchingSpecs.isEmpty) {
+      matchingSpecs.add('general');
+      matchingSpecs.add('general physician');
+    }
+    
+    return matchingSpecs.toList();
+  }
+
+  bool _isDoctorMatching(String doctorSpec, List<String> requiredSpecs) {
+    String lowerSpec = doctorSpec.toLowerCase();
+    for (String required in requiredSpecs) {
+      if (lowerSpec.contains(required) || required.contains(lowerSpec)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void _showDoctorRecommendations(String symptoms) async {
     setState(() {
       _loadingDoctors = true;
@@ -405,47 +497,98 @@ class _ChatScreenState extends State<ChatScreen> {
         };
       }).toList();
 
-      final lowerSymptoms = symptoms.toLowerCase();
-      final List<Map<String, dynamic>> matchedDoctors = [];
+      // Get matching specializations based on symptoms
+      List<String> matchingSpecializations = _getMatchingSpecializations(symptoms);
       
+      final List<Map<String, dynamic>> matchedDoctors = [];
+      final Set<String> addedDoctorIds = {}; // To avoid duplicates
+      
+      // First pass: Exact specialization match
       for (var doc in allDoctors) {
-        int priorityScore = 0;
         final spec = doc['specialization'] as String;
         final specification = doc['specification'] as String;
+        final combinedSpec = '$spec $specification';
         
-        // Check specification first
-        if (lowerSymptoms.contains('fever') && (specification.contains('general') || specification.contains('physician') || spec.contains('general'))) {
-          priorityScore += 5;
-        }
-        if (lowerSymptoms.contains('headache') && (specification.contains('neuro') || specification.contains('neurologist') || spec.contains('general'))) {
-          priorityScore += 5;
-        }
-        if ((lowerSymptoms.contains('cough') || lowerSymptoms.contains('cold')) && (specification.contains('ent') || specification.contains('ear') || spec.contains('ent'))) {
-          priorityScore += 5;
-        }
-        if ((lowerSymptoms.contains('pain') || lowerSymptoms.contains('muscle')) && (specification.contains('ortho') || specification.contains('bone') || spec.contains('orthopedic'))) {
-          priorityScore += 5;
-        }
-        if (lowerSymptoms.contains('stomach') && (specification.contains('gastro') || specification.contains('stomach') || spec.contains('gastroenterologist'))) {
-          priorityScore += 5;
-        }
-        
-        if (priorityScore > 0) {
-          doc['priorityScore'] = priorityScore;
-          matchedDoctors.add(doc);
+        for (String requiredSpec in matchingSpecializations) {
+          if (_isDoctorMatching(combinedSpec, [requiredSpec])) {
+            if (!addedDoctorIds.contains(doc['id'])) {
+              doc['priorityScore'] = 10;
+              matchedDoctors.add(doc);
+              addedDoctorIds.add(doc['id']);
+              break;
+            }
+          }
         }
       }
       
+      // Second pass: Partial match (if no exact matches found)
+      if (matchedDoctors.isEmpty) {
+        for (var doc in allDoctors) {
+          final spec = doc['specialization'] as String;
+          final specification = doc['specification'] as String;
+          final combinedSpec = '$spec $specification';
+          
+          for (String requiredSpec in matchingSpecializations) {
+            if (combinedSpec.contains(requiredSpec.split(' ').first) || 
+                requiredSpec.contains(spec.split(' ').first)) {
+              if (!addedDoctorIds.contains(doc['id'])) {
+                doc['priorityScore'] = 5;
+                matchedDoctors.add(doc);
+                addedDoctorIds.add(doc['id']);
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // Sort by priority score
       matchedDoctors.sort((a, b) => (b['priorityScore'] ?? 0).compareTo(a['priorityScore'] ?? 0));
       
       setState(() {
-        _suggestedDoctors = matchedDoctors.isNotEmpty ? matchedDoctors : allDoctors.take(3).toList();
+        _suggestedDoctors = matchedDoctors;
         _loadingDoctors = false;
       });
       
       if (_suggestedDoctors.isNotEmpty) {
-        _addBotMessage("👨‍⚕️ **Recommended Doctors**\n\nBased on your symptoms, I've found ${_suggestedDoctors.length} doctor(s) who can help you.\n\nPlease select a doctor below to book an appointment:");
+        // Get specialist names for display
+        String specialistNames = matchingSpecializations
+            .where((s) => s != 'general' && s != 'general physician')
+            .take(3)
+            .map((s) => s.split(' ').map((word) => 
+                word[0].toUpperCase() + word.substring(1)).join(' '))
+            .join(', ');
+        
+        if (specialistNames.isEmpty) {
+          specialistNames = 'General Physicians';
+        }
+        
+        _addBotMessage("👨‍⚕️ **${specialistNames}**\n\nI've found ${matchedDoctors.length} doctor(s) who specialize in your symptoms.\n\nPlease select a doctor below to book an appointment:");
+      } else {
+        // Fallback: Show top rated general doctors
+        final generalDoctors = allDoctors
+            .where((doc) => 
+                (doc['specialization'] as String).contains('general') || 
+                (doc['specification'] as String).contains('general'))
+            .take(5)
+            .toList();
+        
+        setState(() {
+          _suggestedDoctors = generalDoctors;
+          _loadingDoctors = false;
+        });
+        
+        if (_suggestedDoctors.isNotEmpty) {
+          _addBotMessage("👨‍⚕️ **General Physicians**\n\nI've found some General Physicians who can help with your symptoms.\n\nPlease select a doctor below to book an appointment:");
+        } else {
+          setState(() {
+            _suggestedDoctors = [];
+            _loadingDoctors = false;
+          });
+          _addBotMessage("No doctors found matching your symptoms. Please try describing your symptoms differently or type 'find doctor' to see all available doctors.");
+        }
       }
+      
     } catch (e) {
       setState(() {
         _suggestedDoctors = [];
@@ -573,7 +716,7 @@ class _ChatScreenState extends State<ChatScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true, // This fixes overflow for translation dialog
+      isScrollControlled: true,
       builder: (context) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -759,7 +902,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _loadUserAppointments();
       
       _showSnackBar('✅ Appointment booked successfully!');
-      _addBotMessage("✅ **Appointment Confirmed!**\n\nYour appointment with **Dr. ${doctor['name']}** has been booked for **${DateFormat('MMM dd, yyyy').format(date)}** at **${time.format(context)}**.\n\nYou can view all your appointments in the 'My Appointments' section.");
+      _addBotMessage("✅ **Appointment Confirmed!**\n\nYour appointment with **Dr. ${doctor['name']}** has been booked for **${DateFormat('MMM dd, yyyy').format(date)}** at **${time.format(context)}**.");
       
     } catch (e) {
       Navigator.pop(context);
@@ -935,7 +1078,6 @@ class _ChatScreenState extends State<ChatScreen> {
   void _sendMessage(String text) async {
     if (text.trim().isEmpty) return;
 
-    // Add user message
     setState(() {
       _messages.add({
         "role": "user", 
@@ -949,7 +1091,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _controller.clear();
 
-    // Check for doctor finder command
     if (text.toLowerCase().contains('find doctor') || text.toLowerCase().contains('show doctors')) {
       _showDoctorDialog();
       setState(() {
@@ -965,10 +1106,8 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // Get AI response
     final aiResponse = await _getAIResponse(text);
 
-    // Add bot response
     setState(() {
       _messages.add({
         "role": "bot", 
@@ -985,7 +1124,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Show doctor recommendations based on symptoms
     if (text.length > 10 && !text.toLowerCase().contains('hello') && !text.toLowerCase().contains('hi')) {
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 800));
       _showDoctorRecommendations(text);
     }
   }
@@ -1008,130 +1147,175 @@ class _ChatScreenState extends State<ChatScreen> {
   // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 400;
+    
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       resizeToAvoidBottomInset: true,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1A237E), Color(0xFF0D47A1)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Colors.cyan, Colors.lightBlue],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.cyan.shade300,
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.auto_awesome, color: Colors.white, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        "AI Symptom Checker",
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Healthcare Assistant',
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: PopupMenuButton<String>(
-                      icon: const Icon(Icons.language, color: Colors.white),
-                      onSelected: (value) => setState(() => _selectedLanguage = value),
-                      itemBuilder: (context) => _languages.entries.map((lang) {
-                        return PopupMenuItem(
-                          value: lang.key,
-                          child: Row(
-                            children: [
-                              Text(lang.value),
-                              if (_selectedLanguage == lang.key) 
-                                const Icon(Icons.check, color: Colors.green, size: 16),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.calendar_today, color: Colors.white),
-                      onPressed: _showAppointmentsDialog,
-                      tooltip: 'My Appointments',
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.white),
-                      onPressed: () async {
-                        _messages.clear();
-                        _suggestedDoctors.clear();
-                        _selectedDoctor = null;
-                        setState(() {});
-                        final prefs = await SharedPreferences.getInstance();
-                        prefs.remove("chat_history_${widget.userId}");
-                        _addWelcomeMessage();
-                        _showSnackBar('Chat history cleared');
-                      },
-                    ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Container(
+              width: constraints.maxWidth,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF1A237E), Color(0xFF0D47A1)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
-            ),
-          ),
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmallScreen ? 8 : 12,
+                    vertical: 6,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(isSmallScreen ? 4 : 6),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Colors.cyan, Colors.lightBlue],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.cyan.shade300,
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.auto_awesome, 
+                          color: Colors.white, 
+                          size: isSmallScreen ? 16 : 20,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (!isSmallScreen)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "AI Symptom Checker",
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              'Healthcare Assistant',
+                              style: GoogleFonts.poppins(
+                                fontSize: 9,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (isSmallScreen)
+                        Text(
+                          "AI Checker",
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      const Spacer(),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: PopupMenuButton<String>(
+                              icon: Icon(
+                                Icons.language, 
+                                color: Colors.white, 
+                                size: isSmallScreen ? 18 : 20,
+                              ),
+                              onSelected: (value) => setState(() => _selectedLanguage = value),
+                              itemBuilder: (context) => _languages.entries.map((lang) {
+                                return PopupMenuItem(
+                                  value: lang.key,
+                                  child: Row(
+                                    children: [
+                                      Text(lang.value),
+                                      if (_selectedLanguage == lang.key) 
+                                        const Icon(Icons.check, color: Colors.green, size: 16),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.calendar_today, 
+                                color: Colors.white, 
+                                size: isSmallScreen ? 18 : 20,
+                              ),
+                              onPressed: _showAppointmentsDialog,
+                              tooltip: 'My Appointments',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.delete_outline, 
+                                color: Colors.white, 
+                                size: isSmallScreen ? 18 : 20,
+                              ),
+                              onPressed: () async {
+                                _messages.clear();
+                                _suggestedDoctors.clear();
+                                _selectedDoctor = null;
+                                setState(() {});
+                                final prefs = await SharedPreferences.getInstance();
+                                prefs.remove("chat_history_${widget.userId}");
+                                _addWelcomeMessage();
+                                _showSnackBar('Chat history cleared');
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
       body: SafeArea(
@@ -1161,7 +1345,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         const SizedBox(width: 8),
                         Text(
                           "Quick Health Check",
-                          style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: GoogleFonts.poppins(
+                            fontSize: isSmallScreen ? 16 : 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -1325,8 +1512,8 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
 
-            // Doctor Recommendations Section
-            if (_suggestedDoctors.isNotEmpty || _loadingDoctors)
+            // Doctor Recommendations Section - Fixed bottom overlay issue
+            if (_suggestedDoctors.isNotEmpty)
               Container(
                 height: 380,
                 margin: const EdgeInsets.all(12),
@@ -1365,7 +1552,10 @@ class _ChatScreenState extends State<ChatScreen> {
                               children: [
                                 Text(
                                   "👨‍⚕️ Recommended Doctors",
-                                  style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: isSmallScreen ? 14 : 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 Text(
                                   "Based on your symptoms",
@@ -1397,8 +1587,6 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                     const Divider(height: 0),
-                    if (_loadingDoctors)
-                      const Expanded(child: Center(child: CircularProgressIndicator())),
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.all(8),
@@ -1453,7 +1641,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                     "Dr. ${doctor['name']}",
                                                     style: TextStyle(
                                                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                                      fontSize: 14,
+                                                      fontSize: isSmallScreen ? 12 : 14,
                                                     ),
                                                   ),
                                                 ),
@@ -1530,7 +1718,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                               shadowColor: Colors.transparent,
                                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                             ),
-                                            child: const Text("Select", style: TextStyle(fontSize: 12)),
+                                            child: Text(
+                                              "Select", 
+                                              style: TextStyle(fontSize: isSmallScreen ? 10 : 12),
+                                            ),
                                           ),
                                         ),
                                     ],
@@ -1558,7 +1749,10 @@ class _ChatScreenState extends State<ChatScreen> {
                             });
                           },
                           icon: const Icon(Icons.calendar_today),
-                          label: const Text("Book Appointment"),
+                          label: Text(
+                            "Book Appointment",
+                            style: TextStyle(fontSize: isSmallScreen ? 12 : 14),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
@@ -1567,6 +1761,29 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                         ),
                       ),
+                  ],
+                ),
+              ),
+              
+            // Loading Indicator
+            if (_loadingDoctors)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Finding doctors near you...'),
                   ],
                 ),
               ),
@@ -1596,7 +1813,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         controller: _controller,
                         focusNode: _focusNode,
                         decoration: InputDecoration(
-                          hintText: "Describe your symptoms or type 'find doctor'...",
+                          hintText: isSmallScreen ? "Describe symptoms..." : "Describe your symptoms...",
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -1627,13 +1844,13 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: IconButton(
                           icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: Colors.white),
                           onPressed: _startListening,
-                          iconSize: 24,
+                          iconSize: isSmallScreen ? 20 : 24,
                         ),
                       ),
                       if (_isListening)
-                        const SizedBox(
-                          width: 55,
-                          height: 55,
+                        SizedBox(
+                          width: isSmallScreen ? 45 : 55,
+                          height: isSmallScreen ? 45 : 55,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -1652,7 +1869,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: IconButton(
                       icon: const Icon(Icons.send, color: Colors.white),
                       onPressed: () => _sendMessage(_controller.text),
-                      iconSize: 24,
+                      iconSize: isSmallScreen ? 20 : 24,
                     ),
                   ),
                 ],
